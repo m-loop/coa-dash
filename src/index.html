@@ -1874,7 +1874,7 @@ function renderTaskCard(t, isParent) {
   // D47: Subtasks collapsed by default
   // D48: Priority badge clickable with dropdown
   // D51: Show owner in collapsed card
-  const ownerHtml = (t.assignee ? '<span class="card-time assignee-display" onclick="event.stopPropagation();toggleAssigneeDropdown(this, '' + t.task_id + '', '' + t.assignee + '')">@' + t.assignee + ' ▾</span>' : '<span class="card-time assignee-display unassigned" onclick="event.stopPropagation();toggleAssigneeDropdown(this, '' + t.task_id + '', '')">未分配 ▾</span>');
+  const ownerHtml = (t.assignee ? '<span class="card-time assignee-display" onclick="event.stopPropagation();toggleAssigneeDropdown(this, \'' + t.task_id + '\', \'' + t.assignee + '\')">@' + t.assignee + ' ▾</span>' : '<span class="card-time assignee-display unassigned" onclick="event.stopPropagation();toggleAssigneeDropdown(this, \'' + t.task_id + '\', \'\')">未分配 ▾</span>');
   
   // D76: SVG chevron for expand button
   const expandBtnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>';
@@ -1896,7 +1896,7 @@ function renderTaskCard(t, isParent) {
       '</div>' +
     '</div>' +
     '<div class="card-body">' +
-      (t.assignee ? '<div class="card-detail"><span class="card-detail-label">Assignee</span><span class="card-detail-value assignee-clickable" onclick="event.stopPropagation();toggleAssigneeDropdown(this, '' + t.task_id + '', '' + t.assignee + '')">' + t.assignee + ' ▾</span></div>' : '<div class="card-detail"><span class="card-detail-label">Assignee</span><span class="card-detail-value assignee-clickable unassigned" onclick="event.stopPropagation();toggleAssigneeDropdown(this, '' + t.task_id + '', '')">未分配 ▾</span></div>') +
+      (t.assignee ? '<div class="card-detail"><span class="card-detail-label">Assignee</span><span class="card-detail-value assignee-clickable" onclick="event.stopPropagation();toggleAssigneeDropdown(this, \'' + t.task_id + '\', \'' + t.assignee + '\')">' + t.assignee + ' ▾</span></div>' : '<div class="card-detail"><span class="card-detail-label">Assignee</span><span class="card-detail-value assignee-clickable unassigned" onclick="event.stopPropagation();toggleAssigneeDropdown(this, \'' + t.task_id + '\', \'\')">未分配 ▾</span></div>') +
       (t.risk_level ? '<div class="card-detail"><span class="card-detail-label">Risk</span><span class="card-detail-value">' + t.risk_level + '</span></div>' : '') +
       (t.notes ? '<div class="card-detail"><span class="card-detail-label">Notes</span><span class="card-detail-value">' + escapeHtml(t.notes.substring(0, 100)) + (t.notes.length > 100 ? '...' : '') + '</span></div>' : '') +
       '<div class="card-actions">' +
@@ -2815,86 +2815,4 @@ document.addEventListener('DOMContentLoaded', initBatchSelection);
 </script>
 </body>
 </html>
-// Status dropdown
-function toggleStatusDropdown(badge, taskId, currentStatus) {
-  // Close any existing dropdowns
-  document.querySelectorAll('.status-dropdown-menu.show').forEach(m => m.classList.remove('show'));
-  
-  // Create dropdown if not exists
-  let menu = badge.querySelector('.status-dropdown-menu');
-  if (!menu) {
-    menu = document.createElement('div');
-    menu.className = 'status-dropdown-menu';
-    menu.innerHTML = 
-      '<div class="status-dropdown-item" data-status="待处理" onclick="selectStatus(\'' + taskId + '\', \'待处理\', this)">待处理</div>' +
-      '<div class="status-dropdown-item" data-status="进行中" onclick="selectStatus(\'' + taskId + '\', \'进行中\', this)">进行中</div>' +
-      '<div class="status-dropdown-item" data-status="已完成" onclick="selectStatus(\'' + taskId + '\', \'已完成\', this)">已完成</div>' +
-      '<div class="status-dropdown-item" data-status="挂起" onclick="selectStatus(\'' + taskId + '\', \'挂起\', this)">挂起</div>';
-    badge.appendChild(menu);
-    
-    // Highlight current status
-    menu.querySelectorAll('.status-dropdown-item').forEach(item => {
-      if (item.dataset.status === currentStatus) {
-        item.classList.add('current');
-      }
-    });
-  }
-  
-  menu.classList.toggle('show');
-  
-  // Close on outside click
-  setTimeout(() => {
-    document.addEventListener('click', function closeDropdown(e) {
-      if (!badge.contains(e.target)) {
-        menu.classList.remove('show');
-        document.removeEventListener('click', closeDropdown);
-      }
-    });
-  }, 10);
-}
-
-function selectStatus(taskId, status, item) {
-  setStatus(taskId, status);
-  // Close dropdown
-  const menu = item.closest('.status-dropdown-menu');
-  if (menu) menu.classList.remove('show');
-}
-
-async function setStatus(taskId, status) {
-  try {
-    const res = await fetch('/api/tasks/' + taskId + '/status', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: status })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('状态已更新为 ' + status, 'success');
-      refreshData();
-    } else {
-      showToast('更新失败', 'error');
-    }
-  } catch (e) {
-    showToast('更新失败', 'error');
-  }
-}
-
-async function setStatusBatch(taskIds, status) {
-  try {
-    const res = await fetch('/api/tasks/status/batch', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskIds: taskIds, status: status })
-    });
-    const data = await res.json();
-    if (data.success) {
-      showToast('已更新 ' + data.updated + ' 个任务状态为 ' + status, 'success');
-      refreshData();
-    } else {
-      showToast('批量更新失败', 'error');
-    }
-  } catch (e) {
-    showToast('批量更新失败', 'error');
-  }
-}
 
