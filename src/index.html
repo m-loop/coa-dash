@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>COA-dash v0.4.4</title>
+<title>COA-dash v0.5.4</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap');
 
@@ -1018,12 +1018,437 @@ h1, h2, h3, h4, h5, h6 {
 .confirm-dialog-btn.cancel { background: var(--secondary); color: var(--text); }
 .confirm-dialog-btn.delete { background: var(--red); color: white; }
 .confirm-dialog-btn:active { opacity: 0.8; }
+
+/* OpenCode Tab Styles (D78-D92) */
+.opencode-page {
+  display: flex;
+  height: 100%;
+  position: relative;
+}
+
+.opencode-sidebar {
+  width: 280px;
+  background: var(--primary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease;
+}
+
+@media (max-width: 780px) {
+  .opencode-sidebar {
+    position: fixed;
+    left: 0;
+    top: var(--top-bar-height);
+    bottom: var(--bottom-nav-height);
+    z-index: 50;
+    transform: translateX(-100%);
+  }
+  .opencode-sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+.opencode-sidebar-header {
+  padding: var(--card-padding);
+  border-bottom: 1px solid var(--border);
+}
+
+.opencode-project-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: var(--font-body);
+  cursor: pointer;
+  min-height: var(--touch-target);
+}
+
+.opencode-session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--card-margin);
+}
+
+.opencode-session-item {
+  padding: var(--card-margin) var(--card-padding);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--card-margin);
+  min-height: var(--touch-target);
+  margin-bottom: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.opencode-session-item:active {
+  background: var(--secondary);
+}
+
+.opencode-session-item.active {
+  border-color: var(--accent);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.opencode-session-status {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.opencode-session-status.idle { background: var(--indigo); }
+.opencode-session-status.busy { background: var(--yellow); animation: pulse 2s infinite; }
+.opencode-session-status.waiting { background: var(--red); }
+.opencode-session-status.done { background: var(--green); }
+
+.opencode-session-title {
+  flex: 1;
+  font-size: var(--font-small);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opencode-session-time {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+}
+
+.opencode-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.opencode-chat-header {
+  padding: var(--card-padding);
+  background: var(--primary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--card-margin);
+}
+
+@media (max-width: 780px) {
+  .opencode-chat-header {
+    padding-left: 8px;
+  }
+}
+
+.opencode-sidebar-toggle {
+  display: none;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border-radius: 8px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 780px) {
+  .opencode-sidebar-toggle {
+    display: flex;
+  }
+}
+
+.opencode-chat-title {
+  font-size: var(--font-title);
+  font-weight: 600;
+  flex: 1;
+}
+
+.opencode-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--card-padding);
+}
+
+.opencode-message {
+  margin-bottom: var(--card-padding);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.opencode-message-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-small);
+  color: var(--text-muted);
+}
+
+.opencode-message-role {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--secondary);
+  font-weight: 500;
+}
+
+.opencode-message-role.user { background: rgba(34, 197, 94, 0.2); color: var(--green); }
+.opencode-message-role.assistant { background: rgba(99, 102, 241, 0.2); color: var(--indigo); }
+
+.opencode-message-content {
+  padding: var(--card-margin) var(--card-padding);
+  background: var(--secondary);
+  border-radius: 8px;
+  font-size: var(--font-body);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.opencode-message.user .opencode-message-content {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.opencode-input-area {
+  padding: var(--card-padding);
+  background: var(--primary);
+  border-top: 1px solid var(--border);
+}
+
+.opencode-command-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: var(--card-margin);
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.opencode-command-btn {
+  padding: 8px 16px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: var(--font-small);
+  cursor: pointer;
+  min-height: var(--touch-target);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.opencode-command-btn:active {
+  background: var(--accent);
+  color: #000;
+}
+
+.opencode-input-row {
+  display: flex;
+  gap: var(--card-margin);
+}
+
+.opencode-input {
+  flex: 1;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: var(--font-body);
+  font-family: inherit;
+  min-height: var(--touch-target);
+  resize: none;
+}
+
+.opencode-send-btn {
+  padding: 10px 20px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #000;
+  font-size: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  transition: background 0.15s;
+}
+
+.opencode-send-btn:active {
+  background: #16a34a;
+}
+
+.opencode-send-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.opencode-overlay {
+  display: none;
+  position: fixed;
+  top: var(--top-bar-height);
+  left: 0;
+  right: 0;
+  bottom: var(--bottom-nav-height);
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+}
+
+@media (max-width: 780px) {
+  .opencode-overlay.show {
+    display: block;
+  }
+}
+
+.opencode-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+}
+
+.opencode-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  gap: var(--card-margin);
+}
+
+/* Session State Button (D73-D77) */
+.session-state-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--font-small);
+  min-height: var(--touch-target);
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.session-state-btn:active {
+  background: var(--primary);
+}
+
+.session-state-icon {
+  font-size: 16px;
+}
+
+.session-state-text {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-state-popup {
+  position: fixed;
+  top: var(--top-bar-height);
+  right: var(--card-padding);
+  width: 280px;
+  background: var(--primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  z-index: 200;
+  display: none;
+}
+
+.session-state-popup.show {
+  display: block;
+}
+
+.session-state-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--card-padding);
+  border-bottom: 1px solid var(--border);
+}
+
+.session-state-popup-title {
+  font-weight: 600;
+  font-size: var(--font-body);
+}
+
+.session-state-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.session-state-close:active {
+  background: var(--secondary);
+}
+
+.session-state-popup-body {
+  padding: var(--card-padding);
+}
+
+.session-state-task {
+  margin-bottom: var(--card-margin);
+}
+
+.session-state-task-id {
+  font-size: var(--font-small);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.session-state-task-title {
+  font-size: var(--font-body);
+  margin-top: 2px;
+}
+
+.session-state-detail {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: var(--font-small);
+  border-bottom: 1px solid var(--border);
+}
+
+.session-state-detail:last-child {
+  border-bottom: none;
+}
+
+.session-state-label {
+  color: var(--text-muted);
+}
+
+.session-state-value {
+  color: var(--text);
+}
 </style>
 </head>
 <body>
 <div class="top-bar">
   <div class="top-bar-logo">🦞 COA-dash</div>
   <div class="top-bar-status">
+    <button class="session-state-btn" id="sessionStateBtn" onclick="toggleSessionState()">
+      <span class="session-state-icon" id="sessionStateIcon">❓</span>
+      <span class="session-state-text" id="sessionStateText">--</span>
+    </button>
     <span class="status-dot" id="gatewayDot"></span>
     <span id="gatewayText">Gateway</span>
     <button class="refresh-btn" id="refreshBtn" aria-label="刷新">
@@ -1032,6 +1457,14 @@ h1, h2, h3, h4, h5, h6 {
       </svg>
     </button>
   </div>
+</div>
+
+<div class="session-state-popup" id="sessionStatePopup">
+  <div class="session-state-popup-header">
+    <span class="session-state-popup-title">Session State</span>
+    <button class="session-state-close" onclick="toggleSessionState()">✕</button>
+  </div>
+  <div class="session-state-popup-body" id="sessionStateBody"></div>
 </div>
 
 <div class="sidebar-left" id="sidebarLeft">
@@ -1059,31 +1492,31 @@ h1, h2, h3, h4, h5, h6 {
 <div class="main-content" id="mainContent"></div>
 
 <div class="bottom-nav">
-  <button class="nav-item active" data-tab="agents">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
-    </svg>
-    <span>Agents</span>
-  </button>
-  <button class="nav-item" data-tab="tasks">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-    </svg>
-    <span>Tasks</span>
-  </button>
-  <button class="nav-item" data-tab="stats">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M18 20V10M12 20V4M6 20v-6"/>
-    </svg>
-    <span>Stats</span>
-  </button>
-  <button class="nav-item" data-tab="config">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="12" cy="12" r="3M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-    </svg>
-    <span>Config</span>
-  </button>
-</div>
+   <button class="nav-item active" data-tab="agents">
+     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+       <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+     </svg>
+     <span>Agents</span>
+   </button>
+   <button class="nav-item" data-tab="tasks">
+     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+       <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+     </svg>
+     <span>Tasks</span>
+   </button>
+   <button class="nav-item" data-tab="opencode">
+     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+     </svg>
+     <span>OpenCode</span>
+   </button>
+   <button class="nav-item" data-tab="config">
+     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+       <circle cx="12" cy="12" r="3M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+     </svg>
+     <span>Config</span>
+   </button>
+ </div>
 
 <div class="toast-container" id="toastContainer"></div>
 
@@ -1240,7 +1673,7 @@ function renderContent() {
   switch (currentTab) {
     case 'agents': renderAgents(container); break;
     case 'tasks': renderTasks(container); break;
-    case 'stats': renderStats(container); break;
+    case 'opencode': renderOpenCode(container); break;
     case 'config': renderConfig(container); break;
   }
 }
@@ -1893,6 +2326,342 @@ function escapeHtml(s) {
   d.textContent = s;
   return d.innerHTML;
 }
+
+let opencodeSessions = [];
+let opencodeProjects = [];
+let selectedProject = null;
+let selectedSession = null;
+let opencodeMessages = [];
+let opencodeSSE = null;
+
+async function loadOpenCodeProjects() {
+  try {
+    const res = await fetch('/api/opencode/projects');
+    const data = await res.json();
+    opencodeProjects = data.projects || [];
+    if (opencodeProjects.length > 0 && !selectedProject) {
+      selectedProject = opencodeProjects[0];
+    }
+  } catch (e) {
+    console.error('Failed to load OpenCode projects:', e);
+    opencodeProjects = [];
+  }
+}
+
+async function loadOpenCodeSessions() {
+  try {
+    const res = await fetch('/api/opencode/sessions');
+    const data = await res.json();
+    opencodeSessions = data.sessions || [];
+  } catch (e) {
+    console.error('Failed to load OpenCode sessions:', e);
+    opencodeSessions = [];
+  }
+}
+
+async function loadSessionMessages(sessionId) {
+  if (!selectedProject) return;
+  
+  try {
+    const res = await fetch('/api/opencode/' + selectedProject.port + '/session/' + sessionId + '/messages');
+    const data = await res.json();
+    opencodeMessages = data.messages || [];
+  } catch (e) {
+    console.error('Failed to load messages:', e);
+    opencodeMessages = [];
+  }
+}
+
+function renderOpenCode(container) {
+  const sidebarHtml = 
+    '<div class="opencode-sidebar" id="opencodeSidebar">' +
+      '<div class="opencode-sidebar-header">' +
+        '<select class="opencode-project-select" id="opencodeProjectSelect">' +
+          opencodeProjects.map(p => '<option value="' + p.port + '">' + p.name + '</option>').join('') +
+        '</select>' +
+      '</div>' +
+      '<div class="opencode-session-list" id="opencodeSessionList">' +
+        renderOpenCodeSessionList() +
+      '</div>' +
+    '</div>';
+  
+  const mainHtml = 
+    '<div class="opencode-main">' +
+      '<div class="opencode-chat-header">' +
+        '<button class="opencode-sidebar-toggle" onclick="toggleOpenCodeSidebar()">☰</button>' +
+        '<div class="opencode-chat-title" id="opencodeChatTitle">' + (selectedSession ? selectedSession.title : 'OpenCode') + '</div>' +
+        '<button class="refresh-btn" onclick="refreshOpenCode()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg></button>' +
+      '</div>' +
+      '<div class="opencode-chat-messages" id="opencodeMessages">' +
+        renderOpenCodeMessages() +
+      '</div>' +
+      '<div class="opencode-input-area">' +
+        '<div class="opencode-command-buttons">' +
+          '<button class="opencode-command-btn" onclick="sendOpenCodeCommand(\'/compact\')">Compact</button>' +
+          '<button class="opencode-command-btn" onclick="sendOpenCodeCommand(\'/clear\')">Clear</button>' +
+          '<button class="opencode-command-btn" onclick="showModelPicker()">Model ▾</button>' +
+        '</div>' +
+        '<div class="opencode-input-row">' +
+          '<input class="opencode-input" id="opencodeInput" placeholder="Type a message..." onkeypress="handleOpenCodeKeyPress(event)">' +
+          '<button class="opencode-send-btn" onclick="sendOpenCodeMessage()">Send</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  
+  container.innerHTML = 
+    '<div class="opencode-overlay" id="opencodeOverlay" onclick="toggleOpenCodeSidebar()"></div>' +
+    '<div class="opencode-page">' + sidebarHtml + mainHtml + '</div>';
+  
+  const projectSelect = $('opencodeProjectSelect');
+  if (projectSelect && selectedProject) {
+    projectSelect.value = selectedProject.port;
+    projectSelect.onchange = () => {
+      const port = parseInt(projectSelect.value);
+      selectedProject = opencodeProjects.find(p => p.port === port);
+      selectedSession = null;
+      opencodeMessages = [];
+      refreshOpenCode();
+    };
+  }
+}
+
+function renderOpenCodeSessionList() {
+  if (opencodeSessions.length === 0) {
+    return '<div class="opencode-empty"><span>No sessions</span></div>';
+  }
+  
+  return opencodeSessions.map(s => {
+    const statusClass = s.status || 'idle';
+    const isActive = selectedSession && selectedSession.id === s.id;
+    return '<div class="opencode-session-item' + (isActive ? ' active' : '') + '" onclick="selectOpenCodeSession(\'' + s.id + '\')">' +
+      '<div class="opencode-session-status ' + statusClass + '">' + getStatusEmoji(statusClass) + '</div>' +
+      '<div class="opencode-session-title">' + escapeHtml(s.title || 'Untitled') + '</div>' +
+      '<div class="opencode-session-time">' + formatOpenCodeTime(s.time_created) + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function getStatusEmoji(status) {
+  switch (status) {
+    case 'idle': return '🔵';
+    case 'busy': return '🟡';
+    case 'waiting': return '🔴';
+    case 'done': return '✅';
+    default: return '⚪';
+  }
+}
+
+function formatOpenCodeTime(timestamp) {
+  if (!timestamp) return '-';
+  const date = new Date(timestamp * 1000);
+  const now = new Date();
+  const diff = now - date;
+  
+  if (diff < 60000) return 'now';
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
+  return Math.floor(diff / 86400000) + 'd';
+}
+
+function renderOpenCodeMessages() {
+  if (!selectedSession) {
+    return '<div class="opencode-empty"><span>Select a session</span></div>';
+  }
+  
+  if (opencodeMessages.length === 0) {
+    return '<div class="opencode-loading">Loading messages...</div>';
+  }
+  
+  return opencodeMessages.map(m => {
+    const role = m.role || 'unknown';
+    return '<div class="opencode-message ' + role + '">' +
+      '<div class="opencode-message-header">' +
+        '<span class="opencode-message-role ' + role + '">' + role + '</span>' +
+      '</div>' +
+      '<div class="opencode-message-content">' + escapeHtml(m.content || '') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function selectOpenCodeSession(sessionId) {
+  selectedSession = opencodeSessions.find(s => s.id === sessionId);
+  $('opencodeChatTitle').textContent = selectedSession ? selectedSession.title : 'OpenCode';
+  
+  await loadSessionMessages(sessionId);
+  $('opencodeSessionList').innerHTML = renderOpenCodeSessionList();
+  $('opencodeMessages').innerHTML = renderOpenCodeMessages();
+  
+  if ($('opencodeSidebar').classList.contains('open')) {
+    toggleOpenCodeSidebar();
+  }
+}
+
+function toggleOpenCodeSidebar() {
+  $('opencodeSidebar').classList.toggle('open');
+  $('opencodeOverlay').classList.toggle('show');
+}
+
+async function refreshOpenCode() {
+  await loadOpenCodeProjects();
+  await loadOpenCodeSessions();
+  renderOpenCode($('mainContent'));
+}
+
+async function sendOpenCodeMessage() {
+  const input = $('opencodeInput');
+  const message = input.value.trim();
+  
+  if (!message || !selectedSession || !selectedProject) return;
+  
+  try {
+    const res = await fetch('/api/opencode/' + selectedProject.port + '/session/' + selectedSession.id + '/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: message })
+    });
+    
+    input.value = '';
+    await loadSessionMessages(selectedSession.id);
+    $('opencodeMessages').innerHTML = renderOpenCodeMessages();
+    $('opencodeMessages').scrollTop = $('opencodeMessages').scrollHeight;
+  } catch (e) {
+    showToast('Failed to send message', 'error');
+  }
+}
+
+function handleOpenCodeKeyPress(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    sendOpenCodeMessage();
+  }
+}
+
+async function sendOpenCodeCommand(cmd) {
+  if (!selectedSession || !selectedProject) return;
+  
+  try {
+    const res = await fetch('/api/opencode/' + selectedProject.port + '/session/' + selectedSession.id + '/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: cmd })
+    });
+    
+    if (cmd === '/clear') {
+      opencodeMessages = [];
+      $('opencodeMessages').innerHTML = renderOpenCodeMessages();
+    }
+    
+    showToast('Command sent: ' + cmd, 'success');
+  } catch (e) {
+    showToast('Failed to send command', 'error');
+  }
+}
+
+function showModelPicker() {
+  showToast('Model picker coming soon', 'info');
+}
+
+let sessionStateData = null;
+
+async function loadSessionState() {
+  try {
+    const res = await fetch('/api/session-state');
+    sessionStateData = await res.json();
+    updateSessionStateUI();
+  } catch (e) {
+    console.error('Failed to load session state:', e);
+    sessionStateData = { status: 'offline' };
+    updateSessionStateUI();
+  }
+}
+
+function updateSessionStateUI() {
+  const icon = $('sessionStateIcon');
+  const text = $('sessionStateText');
+  
+  if (!sessionStateData) {
+    icon.textContent = '❓';
+    text.textContent = '--';
+    return;
+  }
+  
+  const status = sessionStateData.status || 'offline';
+  const task = sessionStateData.currentTask;
+  
+  const statusIcons = {
+    'idle': '💤',
+    'working': '🔄',
+    'waiting': '⏳',
+    'offline': '❓'
+  };
+  
+  icon.textContent = statusIcons[status] || '❓';
+  text.textContent = task ? task.id : status;
+}
+
+function toggleSessionState() {
+  const popup = $('sessionStatePopup');
+  popup.classList.toggle('show');
+  
+  if (popup.classList.contains('show')) {
+    renderSessionStatePopup();
+  }
+}
+
+function renderSessionStatePopup() {
+  const body = $('sessionStateBody');
+  
+  if (!sessionStateData) {
+    body.innerHTML = '<div class="session-state-detail"><span class="session-state-label">Status</span><span class="session-state-value">Loading...</span></div>';
+    return;
+  }
+  
+  const task = sessionStateData.currentTask;
+  const status = sessionStateData.status || 'offline';
+  
+  let html = '';
+  
+  if (task) {
+    html += '<div class="session-state-task">' +
+      '<div class="session-state-task-id">' + task.id + '</div>' +
+      '<div class="session-state-task-title">' + escapeHtml(task.title) + '</div>' +
+    '</div>';
+    
+    html += '<div class="session-state-detail">' +
+      '<span class="session-state-label">Priority</span>' +
+      '<span class="session-state-value">' + (task.priority || '待定') + '</span>' +
+    '</div>';
+    
+    html += '<div class="session-state-detail">' +
+      '<span class="session-state-label">Status</span>' +
+      '<span class="session-state-value">' + (task.status || '待处理') + '</span>' +
+    '</div>';
+  }
+  
+  html += '<div class="session-state-detail">' +
+    '<span class="session-state-label">Agent Status</span>' +
+    '<span class="session-state-value">' + status + '</span>' +
+  '</div>';
+  
+  if (sessionStateData.model) {
+    html += '<div class="session-state-detail">' +
+      '<span class="session-state-label">Model</span>' +
+      '<span class="session-state-value">' + sessionStateData.model + '</span>' +
+    '</div>';
+  }
+  
+  if (sessionStateData.waitingCount > 0) {
+    html += '<div class="session-state-detail">' +
+      '<span class="session-state-label">Waiting Events</span>' +
+      '<span class="session-state-value">' + sessionStateData.waitingCount + '</span>' +
+    '</div>';
+  }
+  
+  body.innerHTML = html;
+}
+
+setInterval(loadSessionState, 30000);
+loadSessionState();
 
 // Event handlers
 document.querySelectorAll('.nav-item').forEach(nav => {

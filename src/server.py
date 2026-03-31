@@ -724,7 +724,6 @@ def get_opencode_sessions(worktree_filter="vault/projects"):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # Query sessions with project worktree filter (D95)
         query = """
             SELECT 
                 s.id,
@@ -761,7 +760,8 @@ def get_opencode_sessions(worktree_filter="vault/projects"):
                         "created": row["timeCreated"],
                         "updated": row["timeUpdated"],
                     },
-                    "status": "idle",  # Default status, could be enhanced
+                    "status": "idle",
+                    "time_created": row["timeCreated"],
                 }
             )
 
@@ -769,6 +769,70 @@ def get_opencode_sessions(worktree_filter="vault/projects"):
 
     except sqlite3.Error as e:
         return {"sessions": [], "error": str(e)}
+
+
+OPENCODE_PROJECTS_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "config", "opencode-projects.json"
+)
+
+
+def get_opencode_projects():
+    """Get OpenCode projects configuration (D88)"""
+    if not os.path.exists(OPENCODE_PROJECTS_PATH):
+        return {"projects": [], "error": "Config file not found"}
+
+    try:
+        with open(OPENCODE_PROJECTS_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            "projects": data.get("projects", []),
+            "default": data.get("defaultProject", ""),
+        }
+    except Exception as e:
+        return {"projects": [], "error": str(e)}
+
+
+def get_session_state(config):
+    """Get current session state from openclaw (D72-D76)"""
+    session_state_path = os.path.expanduser("~/.openclaw/workspace/session-state.json")
+
+    if not os.path.exists(session_state_path):
+        return {"status": "offline", "error": "Session state file not found"}
+
+    try:
+        with open(session_state_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        current_task_id = data.get("current_task")
+        status = data.get("status", "idle")
+        waiting_events = data.get("waiting_events", [])
+
+        task_info = None
+        if current_task_id:
+            tasks_path = config.get("tasks", {}).get("path", "")
+            if tasks_path and os.path.exists(tasks_path):
+                with open(tasks_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            task = json.loads(line)
+                            if task.get("task_id") == current_task_id:
+                                task_info = {
+                                    "id": task.get("task_id"),
+                                    "title": task.get("title", ""),
+                                    "priority": task.get("priority", "待定"),
+                                    "status": task.get("status", "待处理"),
+                                }
+                                break
+
+        return {
+            "status": status,
+            "currentTask": task_info,
+            "waitingCount": len(waiting_events),
+            "model": data.get("model", "unknown"),
+            "lastUpdated": data.get("last_updated"),
+        }
+    except Exception as e:
+        return {"status": "offline", "error": str(e)}
 
 
 def send_notification(config, task_id, agent_id, notification_type):
@@ -852,6 +916,12 @@ class COADashHandler(BaseHTTPRequestHandler):
         elif path == "/api/opencode/sessions":
             worktree_filter = query.get("worktree", ["vault/projects"])[0]
             self.send_json(get_opencode_sessions(worktree_filter))
+        elif path == "/api/opencode/projects":
+            self.send_json(get_opencode_projects())
+        elif path == "/api/session-state":
+            self.send_json(get_session_state(self.config))
+        elif path.startswith("/api/opencode/") and "/session/" in path:
+            self.proxy_opencode_request(path)
         else:
             self.send_error(404)
 
@@ -966,6 +1036,8 @@ class COADashHandler(BaseHTTPRequestHandler):
                 self.send_json(result)
             except Exception as e:
                 self.send_json({"success": False, "error": str(e)}, 400)
+        elif path.startswith("/api/opencode/") and "/session/" in path:
+            self.proxy_opencode_request(path)
         else:
             self.send_error(404)
 
@@ -989,6 +1061,65 @@ class COADashHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(encoded)
+
+    def proxy_opencode_request(self, path):
+        """Proxy requests to OpenCode serve (D80-D81)"""
+        import urllib.request
+        import urllib.error
+
+        parts = path.split("/")
+        try:
+            port = int(parts[3])
+            session_id = parts[5]
+            action = parts[6] if len(parts) > 6 else ""
+        except (IndexError, ValueError):
+            self.send_json({"error": "Invalid path"}, 400)
+            return
+
+        allowed_actions = ["messages", "message", "command"]
+        if action and action not in allowed_actions:
+            self.send_json({"error": "Action not allowed"}, 403)
+            return
+
+        opencode_url = f"http://localhost:{port}/session/{session_id}"
+        if action:
+            opencode_url += f"/{action}"
+
+        try:
+            if self.command == "GET":
+                req = urllib.request.Request(
+                    opencode_url, headers={"Accept-Encoding": "identity"}
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = resp.read().decode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(data.encode("utf-8"))
+            elif self.command == "POST":
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_length)
+                req = urllib.request.Request(
+                    opencode_url,
+                    data=body,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Accept-Encoding": "identity",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = resp.read().decode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(data.encode("utf-8"))
+            else:
+                self.send_error(405)
+        except urllib.error.URLError as e:
+            self.send_json({"error": f"OpenCode connection failed: {e}"}, 502)
+        except Exception as e:
+            self.send_json({"error": str(e)}, 500)
 
     def serve_file(self, filename, content_type):
         try:
