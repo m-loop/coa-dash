@@ -1,0 +1,7 @@
+{
+  "projects": [
+    {"name": "coa-dash", "path": "/home/aegis/vault/projects/coa-dash", "port": 4096},
+    {"name": "my-app", "path": "/home/aegis/vault/projects/my-app", "port": 4097}
+  ],
+  "defaultProject": "coa-dash"
+}

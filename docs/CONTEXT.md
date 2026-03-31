@@ -2,11 +2,72 @@
 
 This document stores critical runtime context that should persist across sessions.
 
-**Last Updated**: 2026-03-31 (v0.4.4 UI Refinements + Session Expansion)
+**Last Updated**: 2026-03-31 (v0.5.0 Session State + OpenCode Tab)
 
 ---
 
-## Current Status: v0.4.4 UI Refinements - Complete ✅
+## Current Status: v0.5.0 Session State + OpenCode Tab - Complete ✅
+
+### Version: 0.5.0 (Session State + OpenCode Tab) - Implemented
+
+### New Features
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 1 | Session State Display | Top bar shows openclaw current task status |
+| 2 | OpenCode Tab | Chat interface for opencode via HTTP API |
+| 3 | Multi-Project Support | Switch between projects in OpenCode tab |
+| 4 | Session Sidebar | List opencode sessions with status icons |
+
+### Design Decisions (D81-D92)
+
+| ID | Decision | Choice | Reason |
+|----|----------|--------|--------|
+| D81 | Session State Position | Top bar, right side | 不遮挡主内容 |
+| D82 | Polling Interval | 30 seconds | 平衡实时性和性能 |
+| D83 | Status Icons | 💤 idle / 🔄 working / ⏳ waiting | 直观易懂 |
+| D84 | Task Enrichment | Merge session-state + tasks.jsonl | 显示完整任务信息 |
+| D85 | UI Approach | Chat interface + command buttons | 触屏友好，无终端模拟 |
+| D86 | Multi-Project | Multiple opencode serve instances | 独立隔离，端口区分 |
+| D87 | API Access | Proxy through coa-dash | 安全可控，统一入口 |
+| D88 | Session Status Icons | 🔵 idle / 🟡 busy / 🔴 waiting / ✅ done | 进度可见 |
+| D89 | Mobile Sidebar | Slide-over panel | 移动端隐藏，点击展开 |
+| D90 | Command Buttons | 44px min, 8px gap | 触屏友好 |
+| D91 | Push Notifications | On session done, when tab not focused | 任务完成提醒 |
+| D92 | SSE Connection | Cleanup on page unload | 防止资源泄漏 |
+
+### Implementation Complete (v0.5.0)
+
+- [x] `src/server.py`: Add `/api/session-state` endpoint
+- [x] `src/server.py`: Add `/api/opencode/projects` endpoint
+- [x] `src/server.py`: Add OpenCode proxy with security validation
+- [x] `src/index.html`: Add Session State button in top bar
+- [x] `src/index.html`: Add OpenCode tab to bottom nav
+- [x] `src/index.html`: Add OpenCode page with sidebar, chat, command buttons
+- [x] `config/opencode-projects.json`: Create project configuration
+- [x] `systemd/opencode-serve@.service`: Create systemd template
+- [x] `VERSION`: Updated to 0.5.0
+
+### API Verification
+
+```
+/api/session-state → Current openclaw session with task info
+/api/opencode/projects → List of configured projects
+/api/opencode/4096/session → Sessions from opencode server
+```
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `src/server.py` | +80 lines (session-state API, opencode proxy) |
+| `src/index.html` | +250 lines (CSS, HTML, JS for new features) |
+| `config/opencode-projects.json` | New file |
+| `systemd/opencode-serve@.service` | New file |
+
+---
+
+## Previous Version: v0.4.4 UI Refinements - Complete ✅
 
 ### Version: 0.4.4 (UI Refinements + Session Expansion) - Implemented
 

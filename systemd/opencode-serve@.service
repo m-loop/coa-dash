@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenCode API Server port %i
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/aegis/.npm-global/bin/opencode serve --port %i --hostname 0.0.0.0
+Restart=always
+RestartSec=3
+Environment=PATH=/home/aegis/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/home/aegis
+WorkingDirectory=/home/aegis
+
+[Install]
+WantedBy=default.target

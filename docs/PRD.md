@@ -1,7 +1,7 @@
 # PRD: COA-dash - Agentic Dashboard
 
 **Project**: COA-dash (Command Orchestration Agent Dashboard)  
-**Version**: 0.4.4 (UI Refinements + Sessions Expansion)  
+**Version**: 0.5.3 (Status & Assignee Dropdowns)  
 **Location**: `/home/aegis/vault/projects/coa-dash/`  
 **Port**: 8890  
 **Access URL**: http://100.103.186.109:8890 (Tailscale)  
@@ -75,6 +75,18 @@ The best agentic dashboard - humanity's most efficient HMI for AI agent orchestr
 - **v0.4.0**: Priority badge visible in collapsed state (row 2)
 - **v0.4.0**: Priority filter buttons (两行布局)
 - **v0.4.0**: Priority filter applies only to parent tasks (parentId=null)
+- **v0.5.1**: Swipe-to-delete on mobile (left swipe reveals delete button)
+- **v0.5.2**: Click status badge to change status via dropdown (D96)
+- **v0.5.2**: Long-press for batch selection, batch status update (D98)
+- **v0.5.3**: Click assignee to change via dropdown picker (D97)
+- **v0.5.3**: Color-coded assignee avatars by type (human/openclaw/opencode)
+
+### 3. OpenCode Integration (v0.5.4 Planned)
+- Session list from SQLite database (D94)
+- Filter sessions by project worktree (D95)
+- Chat interface to interact with OpenCode sessions
+- Session state display in top bar
+- Multi-project support via config file
 
 ### 3. Statistics and Summary (Phase 2)
 - Idle ratio and throughput

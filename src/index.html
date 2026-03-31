@@ -678,6 +678,89 @@ h1, h2, h3, h4, h5, h6 {
 .priority-dropdown-menu.show {
   display: block;
 }
+/* D101: Assignee dropdown styles */
+.assignee-display {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.05);
+  transition: background 0.2s;
+}
+.assignee-display:hover {
+  background: rgba(255,255,255,0.1);
+}
+.assignee-display.unassigned {
+  color: #888;
+}
+.assignee-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  z-index: 1000;
+  min-width: 180px;
+  max-height: 300px;
+  overflow-y: auto;
+  display: none;
+}
+.assignee-dropdown-menu.show {
+  display: block;
+}
+.assignee-category {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #333;
+}
+.assignee-dropdown-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+  border-bottom: 1px solid #222;
+}
+.assignee-dropdown-item:last-child {
+  border-bottom: none;
+}
+.assignee-dropdown-item:hover {
+  background: rgba(255,255,255,0.1);
+}
+.assignee-dropdown-item.current {
+  background: rgba(76, 139, 245, 0.2);
+  border-left: 3px solid #4c8bf5;
+}
+.assignee-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #4c8bf5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  flex-shrink: 0;
+}
+.assignee-avatar.human {
+  background: #10b981;
+}
+.assignee-avatar.opencode {
+  background: #f59e0b;
+}
+.assignee-name {
+  flex: 1;
+  font-size: 13px;
+}
+
 
 .priority-dropdown-item {
   padding: 8px 12px;
@@ -1358,7 +1441,7 @@ function renderTaskCard(t, isParent) {
   // D47: Subtasks collapsed by default
   // D48: Priority badge clickable with dropdown
   // D51: Show owner in collapsed card
-  const ownerHtml = t.assignee ? '<span class="card-time">@' + t.assignee + '</span>' : '';
+  const ownerHtml = (t.assignee ? '<span class="card-time assignee-display" onclick="event.stopPropagation();toggleAssigneeDropdown(this, '' + t.task_id + '', '' + t.assignee + '')">@' + t.assignee + ' ▾</span>' : '<span class="card-time assignee-display unassigned" onclick="event.stopPropagation();toggleAssigneeDropdown(this, '' + t.task_id + '', '')">未分配 ▾</span>');
   
   // D76: SVG chevron for expand button
   const expandBtnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>';
@@ -1380,7 +1463,7 @@ function renderTaskCard(t, isParent) {
       '</div>' +
     '</div>' +
     '<div class="card-body">' +
-      (t.assignee ? '<div class="card-detail"><span class="card-detail-label">Assignee</span><span class="card-detail-value">' + t.assignee + '</span></div>' : '') +
+      (t.assignee ? '<div class="card-detail"><span class="card-detail-label">Assignee</span><span class="card-detail-value assignee-clickable" onclick="event.stopPropagation();toggleAssigneeDropdown(this, '' + t.task_id + '', '' + t.assignee + '')">' + t.assignee + ' ▾</span></div>' : '<div class="card-detail"><span class="card-detail-label">Assignee</span><span class="card-detail-value assignee-clickable unassigned" onclick="event.stopPropagation();toggleAssigneeDropdown(this, '' + t.task_id + '', '')">未分配 ▾</span></div>') +
       (t.risk_level ? '<div class="card-detail"><span class="card-detail-label">Risk</span><span class="card-detail-value">' + t.risk_level + '</span></div>' : '') +
       (t.notes ? '<div class="card-detail"><span class="card-detail-label">Notes</span><span class="card-detail-value">' + escapeHtml(t.notes.substring(0, 100)) + (t.notes.length > 100 ? '...' : '') + '</span></div>' : '') +
       '<div class="card-actions">' +
@@ -1599,6 +1682,131 @@ function selectPriority(taskId, priority, item) {
   // Close dropdown
   const menu = item.closest('.priority-dropdown-menu');
   if (menu) menu.classList.remove('show');
+}
+
+
+// D101: Assignee dropdown
+let assigneesCache = null;
+
+async function loadAssignees() {
+  if (assigneesCache) return assigneesCache;
+  
+  try {
+    const res = await fetch('/api/assignees');
+    const data = await res.json();
+    assigneesCache = data;
+    return data;
+  } catch (e) {
+    console.error('Failed to load assignees:', e);
+    return { humans: [], openclaw: [], opencode: [] };
+  }
+}
+
+function getAvatarHtml(name, type) {
+  const initial = name.charAt(0).toUpperCase();
+  return '<div class="assignee-avatar ' + type + '">' + initial + '</div>';
+}
+
+async function toggleAssigneeDropdown(element, taskId, currentAssignee) {
+  // Close any existing dropdowns
+  document.querySelectorAll('.assignee-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+  
+  // Create dropdown if not exists
+  let menu = element.querySelector('.assignee-dropdown-menu');
+  if (!menu) {
+    menu = document.createElement('div');
+    menu.className = 'assignee-dropdown-menu';
+    
+    const assignees = await loadAssignees();
+    
+    let html = '';
+    
+    // Humans section
+    if (assignees.humans && assignees.humans.length > 0) {
+      html += '<div class="assignee-category">人类</div>';
+      assignees.humans.forEach(a => {
+        const isCurrent = a.id === currentAssignee;
+        html += '<div class="assignee-dropdown-item' + (isCurrent ? ' current' : '') + '" data-assignee="' + a.id + '" data-type="' + a.type + '" onclick="selectAssignee(\'' + taskId + '\', \'' + a.id + '\', this)">' +
+          getAvatarHtml(a.displayName, 'human') +
+          '<span class="assignee-name">' + a.displayName + '</span>' +
+        '</div>';
+      });
+    }
+    
+    // OpenClaw Agents section
+    if (assignees.openclaw && assignees.openclaw.length > 0) {
+      html += '<div class="assignee-category">OpenClaw Agent</div>';
+      assignees.openclaw.forEach(a => {
+        const isCurrent = a.id === currentAssignee;
+        html += '<div class="assignee-dropdown-item' + (isCurrent ? ' current' : '') + '" data-assignee="' + a.id + '" data-type="' + a.type + '" onclick="selectAssignee(\'' + taskId + '\', \'' + a.id + '\', this)">' +
+          getAvatarHtml(a.displayName, 'openclaw') +
+          '<span class="assignee-name">' + a.displayName + '</span>' +
+        '</div>';
+      });
+    }
+    
+    // OpenCode Agents section
+    if (assignees.opencode && assignees.opencode.length > 0) {
+      html += '<div class="assignee-category">OpenCode Agent</div>';
+      assignees.opencode.forEach(a => {
+        const isCurrent = a.id === currentAssignee;
+        html += '<div class="assignee-dropdown-item' + (isCurrent ? ' current' : '') + '" data-assignee="' + a.id + '" data-type="' + a.type + '" onclick="selectAssignee(\'' + taskId + '\', \'' + a.id + '\', this)">' +
+          getAvatarHtml(a.displayName, 'opencode') +
+          '<span class="assignee-name">' + a.displayName + '</span>' +
+        '</div>';
+      });
+    }
+    
+    // Clear option
+    if (currentAssignee) {
+      html += '<div class="assignee-category">操作</div>';
+      html += '<div class="assignee-dropdown-item" data-assignee="" data-type="clear" onclick="selectAssignee(\'' + taskId + '\', \'\', this)">' +
+        '<span class="assignee-name" style="color: #ef4444;">清除责任人</span>' +
+      '</div>';
+    }
+    
+    menu.innerHTML = html;
+    element.style.position = 'relative';
+    element.appendChild(menu);
+  }
+  
+  menu.classList.toggle('show');
+  
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function closeDropdown(e) {
+      if (!element.contains(e.target)) {
+        menu.classList.remove('show');
+        document.removeEventListener('click', closeDropdown);
+      }
+    });
+  }, 10);
+}
+
+function selectAssignee(taskId, assignee, item) {
+  setAssignee(taskId, assignee);
+  // Close dropdown
+  const menu = item.closest('.assignee-dropdown-menu');
+  if (menu) menu.classList.remove('show');
+}
+
+async function setAssignee(taskId, assignee) {
+  try {
+    const res = await fetch('/api/tasks/' + taskId + '/assignee', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignee: assignee })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(assignee ? '责任人已更新为 ' + assignee : '责任人已清除', 'success');
+      refreshData();
+    } else {
+      showToast('更新失败', 'error');
+    }
+  } catch (e) {
+    showToast('更新失败', 'error');
+  }
 }
 
 function toggleCard(card) {

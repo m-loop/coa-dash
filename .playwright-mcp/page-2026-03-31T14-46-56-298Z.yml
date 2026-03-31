@@ -1,0 +1,107 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦞 COA-dash
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - 'button "💤 #003 mLoop 样本库实施 ▼" [active] [ref=e6] [cursor=pointer]':
+          - generic [ref=e7]: 💤
+          - generic [ref=e8]: "#003 mLoop 样本库实施"
+          - generic [ref=e9]: ▼
+        - generic [ref=e116]:
+          - generic [ref=e117]: "#003 mLoop 样本库实施"
+          - generic [ref=e118]:
+            - generic [ref=e119]: ⏰
+            - generic [ref=e120]: 2026-04-01T09:55:00.000Z - GLM Codi
+          - generic [ref=e121]: "Model: modelstudio/glm-5 | Since: 16:23"
+      - generic [ref=e11]: 2 agents active
+      - button "刷新" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+  - generic [ref=e15]:
+    - generic [ref=e16]:
+      - generic [ref=e17]: Agents
+      - generic [ref=e18]:
+        - generic [ref=e124]: main
+        - generic [ref=e127]: coder
+    - generic [ref=e25]:
+      - generic [ref=e26]: Task Summary
+      - generic [ref=e27]:
+        - generic [ref=e128]:
+          - generic [ref=e129]: "109"
+          - generic [ref=e130]: Tasks
+        - generic [ref=e131]:
+          - generic [ref=e132]: "31"
+          - generic [ref=e133]: Pending
+        - generic [ref=e134]:
+          - generic [ref=e135]: "7"
+          - generic [ref=e136]: In Progress
+        - generic [ref=e137]:
+          - generic [ref=e138]: "2"
+          - generic [ref=e139]: Agents
+  - generic [ref=e40]:
+    - generic [ref=e41]:
+      - generic [ref=e42]: Task Statistics
+      - generic [ref=e43]:
+        - generic [ref=e140]:
+          - generic [ref=e141]: "109"
+          - generic [ref=e142]: Total
+        - generic [ref=e143]:
+          - generic [ref=e144]: "66"
+          - generic [ref=e145]: Completed
+        - generic [ref=e146]:
+          - generic [ref=e147]: "31"
+          - generic [ref=e148]: Pending
+        - generic [ref=e149]:
+          - generic [ref=e150]: "7"
+          - generic [ref=e151]: In Progress
+        - generic [ref=e152]:
+          - generic [ref=e153]: "5"
+          - generic [ref=e154]: Blocked
+    - generic [ref=e59]:
+      - generic [ref=e60]: Agent Status
+      - generic [ref=e61]:
+        - generic [ref=e155]:
+          - generic [ref=e156]: "0"
+          - generic [ref=e157]: Online
+        - generic [ref=e158]:
+          - generic [ref=e159]: "0"
+          - generic [ref=e160]: Busy
+        - generic [ref=e161]:
+          - generic [ref=e162]: "2"
+          - generic [ref=e163]: Idle
+        - generic [ref=e164]:
+          - generic [ref=e165]: "0"
+          - generic [ref=e166]: Offline
+  - generic [ref=e74]:
+    - generic [ref=e168]:
+      - button "All" [ref=e169] [cursor=pointer]
+      - button "Feishu" [ref=e170] [cursor=pointer]
+      - button "WebChat" [ref=e171] [cursor=pointer]
+    - generic [ref=e172]:
+      - generic [ref=e174] [cursor=pointer]:
+        - generic [ref=e175]:
+          - generic [ref=e176]: main/feishu
+          - generic [ref=e177]: ⚪ offline
+        - generic [ref=e178]:
+          - generic [ref=e179]: Talos 自主任务执行
+          - generic [ref=e180]: 12 min ago
+      - generic [ref=e182] [cursor=pointer]:
+        - generic [ref=e183]:
+          - generic [ref=e184]: main/webchat
+          - generic [ref=e185]: ⚪ offline
+        - generic [ref=e187]: 6 hr ago
+  - generic [ref=e96]:
+    - button "Agents" [ref=e97] [cursor=pointer]:
+      - img [ref=e98]
+      - generic [ref=e100]: Agents
+    - button "Tasks" [ref=e101] [cursor=pointer]:
+      - img [ref=e102]
+      - generic [ref=e104]: Tasks
+    - button "Stats" [ref=e105] [cursor=pointer]:
+      - img [ref=e106]
+      - generic [ref=e108]: Stats
+    - button "Config" [ref=e109] [cursor=pointer]:
+      - img [ref=e110]
+      - generic [ref=e111]: Config
+    - button "OpenCode" [ref=e112] [cursor=pointer]:
+      - img [ref=e113]
+      - generic [ref=e115]: OpenCode

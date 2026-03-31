@@ -1,0 +1,33 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦞 COA-dash
+    - generic [ref=e4]:
+      - 'button "💤 #003 mLoop 样本库实施 ▼" [ref=e6] [cursor=pointer]':
+        - generic [ref=e7]: 💤
+        - generic [ref=e8]: "#003 mLoop 样本库实施"
+        - generic [ref=e9]: ▼
+      - generic [ref=e11]: Gateway
+      - button "刷新" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+  - generic [ref=e15]:
+    - generic [ref=e17]: Agents
+    - generic [ref=e19]: Task Summary
+  - generic [ref=e20]:
+    - generic [ref=e22]: Task Statistics
+    - generic [ref=e24]: Agent Status
+  - generic [ref=e26]:
+    - button "Agents" [ref=e27] [cursor=pointer]:
+      - img [ref=e28]
+      - generic [ref=e30]: Agents
+    - button "Tasks" [ref=e31] [cursor=pointer]:
+      - img [ref=e32]
+      - generic [ref=e34]: Tasks
+    - button "Stats" [ref=e35] [cursor=pointer]:
+      - img [ref=e36]
+      - generic [ref=e38]: Stats
+    - button "Config" [ref=e39] [cursor=pointer]:
+      - img [ref=e40]
+      - generic [ref=e41]: Config
+    - button "OpenCode" [ref=e42] [cursor=pointer]:
+      - img [ref=e43]
+      - generic [ref=e45]: OpenCode

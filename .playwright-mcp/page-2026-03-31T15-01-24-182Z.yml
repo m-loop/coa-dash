@@ -1,0 +1,166 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦞 COA-dash
+    - generic [ref=e4]:
+      - 'button "💤 #003 mLoop 样本库实施 ▼" [ref=e6] [cursor=pointer]':
+        - generic [ref=e7]: 💤
+        - generic [ref=e8]: "#003 mLoop 样本库实施"
+        - generic [ref=e9]: ▼
+      - generic [ref=e11]: 2 agents active
+      - button "刷新" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+  - generic [ref=e117]:
+    - complementary [ref=e118]:
+      - generic [ref=e119]:
+        - generic [ref=e120]: Projects
+        - generic [ref=e121]:
+          - generic [ref=e122]: coa-dash
+          - generic [ref=e123]: my-app
+      - generic [ref=e124]:
+        - generic [ref=e125]: Sessions
+        - generic [ref=e126]:
+          - generic [ref=e127] [cursor=pointer]:
+            - generic [ref=e128]: ⚪
+            - generic [ref=e130]: 检查 bigmodel.cn 登录状态并执行购买
+          - generic [ref=e131] [cursor=pointer]:
+            - generic [ref=e132]: ⚪
+            - generic [ref=e134]: 检查 bigmodel.cn 登录状态与订阅页面
+          - generic [ref=e135] [cursor=pointer]:
+            - generic [ref=e136]: ⚪
+            - generic [ref=e138]: bigmodel.cn 登录检查与订阅购买
+          - generic [ref=e139] [cursor=pointer]:
+            - generic [ref=e140]: ⚪
+            - generic [ref=e142]: chrome-devtools MCP 购买 GLM Coding Plan
+          - generic [ref=e143] [cursor=pointer]:
+            - generic [ref=e144]: ⚪
+            - generic [ref=e146]: 测试访问 bigmodel.cn/glm-coding
+          - generic [ref=e147] [cursor=pointer]:
+            - generic [ref=e148]: ⚪
+            - generic [ref=e150]: Greeting
+          - generic [ref=e151] [cursor=pointer]:
+            - generic [ref=e152]: ⚪
+            - generic [ref=e154]: Installing Google Chrome on Ubuntu
+          - generic [ref=e155] [cursor=pointer]:
+            - generic [ref=e156]: ⚪
+            - generic [ref=e158]: 继续工作并查看历史信息
+          - generic [ref=e159] [cursor=pointer]:
+            - generic [ref=e160]: ⚪
+            - generic [ref=e162]: opencode phone app or webui 远程控制
+          - generic [ref=e163] [cursor=pointer]:
+            - generic [ref=e164]: ⚪
+            - generic [ref=e166]: Openclaw WebUI 待办任务与 Agent 状态页设计调研
+          - generic [ref=e167] [cursor=pointer]:
+            - generic [ref=e168]: ⚪
+            - generic [ref=e170]: "Brief message: de"
+          - generic [ref=e171] [cursor=pointer]:
+            - generic [ref=e172]: ⚪
+            - generic [ref=e174]: openclaw 兼容 vault 自动同步方案
+          - generic [ref=e175] [cursor=pointer]:
+            - generic [ref=e176]: ⚪
+            - generic [ref=e178]: Fixing OpenClaw exec tools after update
+          - generic [ref=e179] [cursor=pointer]:
+            - generic [ref=e180]: ⚪
+            - generic [ref=e182]: Openclaw multi gateway problem investigation
+          - generic [ref=e183] [cursor=pointer]:
+            - generic [ref=e184]: ⚪
+            - generic [ref=e186]: claw fix
+          - generic [ref=e187] [cursor=pointer]:
+            - generic [ref=e188]: ⚪
+            - generic [ref=e190]: openclaw-mobile logic flaw review
+          - generic [ref=e191] [cursor=pointer]:
+            - generic [ref=e192]: ⚪
+            - generic [ref=e194]: 软件设计技能与 superpower 安装询问
+          - generic [ref=e195] [cursor=pointer]:
+            - generic [ref=e196]: ⚪
+            - generic [ref=e198]: WebUI中TUI替代IDE模式
+          - generic [ref=e199] [cursor=pointer]:
+            - generic [ref=e200]: ⚪
+            - generic [ref=e202]: New session - 2026-03-30T16:46:45.061Z
+          - generic [ref=e203] [cursor=pointer]:
+            - generic [ref=e204]: ⚪
+            - generic [ref=e206]: Listing files request
+          - generic [ref=e207] [cursor=pointer]:
+            - generic [ref=e208]: ⚪
+            - generic [ref=e210]: Listing files
+          - generic [ref=e211] [cursor=pointer]:
+            - generic [ref=e212]: ⚪
+            - generic [ref=e214]: Search model benchmarks (@explore subagent)
+          - generic [ref=e215] [cursor=pointer]:
+            - generic [ref=e216]: ⚪
+            - generic [ref=e218]: Evaluating m-loop/COA for nanobot replacement
+          - generic [ref=e219] [cursor=pointer]:
+            - generic [ref=e220]: ⚪
+            - generic [ref=e222]: Empty conversation title request
+          - generic [ref=e223] [cursor=pointer]:
+            - generic [ref=e224]: ⚪
+            - generic [ref=e226]: 重写篝火系统 v2.1 bonfire.py
+          - generic [ref=e227] [cursor=pointer]:
+            - generic [ref=e228]: ⚪
+            - generic [ref=e230]: New session - 2026-03-22T16:23:41.603Z
+          - generic [ref=e231] [cursor=pointer]:
+            - generic [ref=e232]: ⚪
+            - generic [ref=e234]: New session - 2026-03-22T16:22:46.441Z
+          - generic [ref=e235] [cursor=pointer]:
+            - generic [ref=e236]: ⚪
+            - generic [ref=e238]: New session - 2026-03-22T16:22:34.770Z
+          - generic [ref=e239] [cursor=pointer]:
+            - generic [ref=e240]: ⚪
+            - generic [ref=e242]: 创建 hello.py 输出 Hello from Opencode 及日期
+          - generic [ref=e243] [cursor=pointer]:
+            - generic [ref=e244]: ⚪
+            - generic [ref=e246]: New session - 2026-03-21T15:54:00.877Z
+          - generic [ref=e247] [cursor=pointer]:
+            - generic [ref=e248]: ⚪
+            - generic [ref=e250]: New session - 2026-03-21T15:52:54.798Z
+          - generic [ref=e251] [cursor=pointer]:
+            - generic [ref=e252]: ⚪
+            - generic [ref=e254]: 飞书多维表格添加任务字段
+          - generic [ref=e255] [cursor=pointer]:
+            - generic [ref=e256]: ⚪
+            - generic [ref=e258]: Nanobot memory condensation API 400 fix
+          - generic [ref=e259] [cursor=pointer]:
+            - generic [ref=e260]: ⚪
+            - generic [ref=e262]: Search ClawHub for self-improving skills (@explore subagent)
+          - generic [ref=e263] [cursor=pointer]:
+            - generic [ref=e264]: ⚪
+            - generic [ref=e266]: Compare multi-agent architectures (@explore subagent)
+          - generic [ref=e267] [cursor=pointer]:
+            - generic [ref=e268]: ⚪
+            - generic [ref=e270]: Evaluate opencode integration (@explore subagent)
+          - generic [ref=e271] [cursor=pointer]:
+            - generic [ref=e272]: ⚪
+            - generic [ref=e274]: Analyze Feishu document integration (@explore subagent)
+          - generic [ref=e275] [cursor=pointer]:
+            - generic [ref=e276]: ⚪
+            - generic [ref=e278]: "Plan-mode system reminder: reading, planning, clarifications only"
+          - generic [ref=e279] [cursor=pointer]:
+            - generic [ref=e280]: ⚪
+            - generic [ref=e282]: Find TTFT benchmark tools (@explore subagent)
+        - button "+ New Session" [ref=e283] [cursor=pointer]
+    - main [ref=e284]:
+      - generic [ref=e286]: coa-dash
+      - generic [ref=e288]: Select a project from the sidebar to start
+      - generic [ref=e289]:
+        - textbox "Type your message..." [ref=e290]
+        - button "Send" [ref=e292] [cursor=pointer]
+      - generic [ref=e293]:
+        - button "Model" [ref=e294] [cursor=pointer]
+        - button "Agent" [ref=e295] [cursor=pointer]
+        - button "Clear" [ref=e296] [cursor=pointer]
+        - button "Compact" [ref=e297] [cursor=pointer]
+  - generic [ref=e26]:
+    - button "Agents" [ref=e27] [cursor=pointer]:
+      - img [ref=e28]
+      - generic [ref=e30]: Agents
+    - button "Tasks" [ref=e31] [cursor=pointer]:
+      - img [ref=e32]
+      - generic [ref=e34]: Tasks
+    - button "Stats" [ref=e35] [cursor=pointer]:
+      - img [ref=e36]
+      - generic [ref=e38]: Stats
+    - button "Config" [ref=e39] [cursor=pointer]:
+      - img [ref=e40]
+      - generic [ref=e41]: Config
+    - button "OpenCode" [active] [ref=e42] [cursor=pointer]:
+      - img [ref=e43]
+      - generic [ref=e45]: OpenCode

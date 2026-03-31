@@ -539,6 +539,68 @@ def update_task_priority(config, task_id, priority):
     return {"success": True, "task": {"taskId": task_id, "priority": priority}}
 
 
+def update_task_status(config, task_id, status):
+    """Update task status in tasks.jsonl"""
+    tasks_path = config["tasks"]["path"]
+
+    if not os.path.exists(tasks_path):
+        return {"success": False, "error": "Tasks file not found"}
+
+    lines = []
+    found = False
+
+    with open(tasks_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    task = json.loads(line)
+                    if task.get("task_id") == task_id:
+                        task["status"] = status
+                        found = True
+                    lines.append(json.dumps(task, ensure_ascii=False))
+                except:
+                    lines.append(line)
+
+    if not found:
+        return {"success": False, "error": "Task not found"}
+
+    with open(tasks_path, "w", encoding="utf-8") as f:
+        for line in lines:
+            f.write(line + "\n")
+
+    return {"success": True, "task": {"taskId": task_id, "status": status}}
+
+
+def update_task_status_batch(config, task_ids, status):
+    """Update multiple tasks status in tasks.jsonl"""
+    tasks_path = config["tasks"]["path"]
+
+    if not os.path.exists(tasks_path):
+        return {"success": False, "error": "Tasks file not found"}
+
+    lines = []
+    updated_count = 0
+
+    with open(tasks_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    task = json.loads(line)
+                    if task.get("task_id") in task_ids:
+                        task["status"] = status
+                        updated_count += 1
+                    lines.append(json.dumps(task, ensure_ascii=False))
+                except:
+                    lines.append(line)
+
+    with open(tasks_path, "w", encoding="utf-8") as f:
+        for line in lines:
+            f.write(line + "\n")
+
+    return {"success": True, "updated": updated_count}
+
 
 def delete_task(config, task_id):
     """Delete task from tasks.jsonl"""
@@ -571,7 +633,6 @@ def delete_task(config, task_id):
             f.write(line + "\n")
 
     return {"success": True, "deleted": True}
-
 
 
 def update_task_assignee(config, task_id, assignee):
@@ -613,29 +674,101 @@ def get_assignees(config):
     humans = [
         {"id": "Ricky", "type": "human", "displayName": "Ricky", "avatar": None},
     ]
-    
+
     # OpenClaw Agents from openclaw.json
     openclaw_agents = []
     configured_agents = agent_cache.get_agents_list()
     if configured_agents:
         for agent_id in configured_agents:
-            openclaw_agents.append({
-                "id": agent_id,
-                "type": "openclaw",
-                "displayName": agent_id.capitalize(),
-                "avatar": None,
-            })
-    
+            openclaw_agents.append(
+                {
+                    "id": agent_id,
+                    "type": "openclaw",
+                    "displayName": agent_id.capitalize(),
+                    "avatar": None,
+                }
+            )
+
     # OpenCode Agents
     opencode_agents = [
-        {"id": "opencode", "type": "opencode", "displayName": "OpenCode", "avatar": None},
+        {
+            "id": "opencode",
+            "type": "opencode",
+            "displayName": "OpenCode",
+            "avatar": None,
+        },
     ]
-    
+
     return {
         "humans": humans,
         "openclaw": openclaw_agents,
         "opencode": opencode_agents,
     }
+
+
+def get_opencode_sessions(worktree_filter="vault/projects"):
+    """Get OpenCode sessions from SQLite database (D94-D95)
+
+    Query sessions with project worktree matching the filter.
+    This bypasses the HTTP API which only returns global sessions.
+    """
+    import sqlite3
+
+    db_path = os.path.expanduser("~/.local/share/opencode/opencode.db")
+
+    if not os.path.exists(db_path):
+        return {"sessions": [], "error": "OpenCode database not found"}
+
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Query sessions with project worktree filter (D95)
+        query = """
+            SELECT 
+                s.id,
+                s.title,
+                s.project_id as projectID,
+                s.directory,
+                s.time_created as timeCreated,
+                s.time_updated as timeUpdated,
+                s.time_archived as timeArchived,
+                p.worktree,
+                p.name as projectName
+            FROM session s
+            JOIN project p ON s.project_id = p.id
+            WHERE p.worktree LIKE ?
+            AND s.time_archived IS NULL
+            ORDER BY s.time_updated DESC
+        """
+
+        cursor.execute(query, (f"%{worktree_filter}%",))
+        rows = cursor.fetchall()
+        conn.close()
+
+        sessions = []
+        for row in rows:
+            sessions.append(
+                {
+                    "id": row["id"],
+                    "title": row["title"] or "Untitled",
+                    "projectID": row["projectID"],
+                    "directory": row["directory"],
+                    "worktree": row["worktree"],
+                    "projectName": row["projectName"],
+                    "time": {
+                        "created": row["timeCreated"],
+                        "updated": row["timeUpdated"],
+                    },
+                    "status": "idle",  # Default status, could be enhanced
+                }
+            )
+
+        return {"sessions": sessions, "count": len(sessions)}
+
+    except sqlite3.Error as e:
+        return {"sessions": [], "error": str(e)}
 
 
 def send_notification(config, task_id, agent_id, notification_type):
@@ -716,6 +849,9 @@ class COADashHandler(BaseHTTPRequestHandler):
                     "status": self.config["status"],
                 }
             )
+        elif path == "/api/opencode/sessions":
+            worktree_filter = query.get("worktree", ["vault/projects"])[0]
+            self.send_json(get_opencode_sessions(worktree_filter))
         else:
             self.send_error(404)
 
@@ -723,6 +859,7 @@ class COADashHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        # Handle /api/tasks/:id/assignee
         assignee_match = re.match(r"/api/tasks/([^/]+)/assignee", path)
         if assignee_match:
             task_id = assignee_match.group(1)
@@ -735,10 +872,12 @@ class COADashHandler(BaseHTTPRequestHandler):
                 self.send_json(result)
             except Exception as e:
                 self.send_json({"success": False, "error": str(e)}, 400)
-        else:
-            match = re.match(r"/api/tasks/([^/]+)/priority", path)
-        if match:
-            task_id = match.group(1)
+            return
+
+        # Handle /api/tasks/:id/priority
+        priority_match = re.match(r"/api/tasks/([^/]+)/priority", path)
+        if priority_match:
+            task_id = priority_match.group(1)
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length).decode("utf-8")
             try:
@@ -753,8 +892,47 @@ class COADashHandler(BaseHTTPRequestHandler):
                     )
             except Exception as e:
                 self.send_json({"success": False, "error": str(e)}, 400)
-        else:
-            self.send_error(404)
+            return
+
+        # Handle /api/tasks/:id/status
+        status_match = re.match(r"/api/tasks/([^/]+)/status", path)
+        if status_match:
+            task_id = status_match.group(1)
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                status = data.get("status")
+                if status:
+                    result = update_task_status(self.config, task_id, status)
+                    self.send_json(result)
+                else:
+                    self.send_json({"success": False, "error": "Status required"}, 400)
+            except Exception as e:
+                self.send_json({"success": False, "error": str(e)}, 400)
+            return
+
+        # Handle /api/tasks/status/batch
+        batch_match = re.match(r"/api/tasks/status/batch", path)
+        if batch_match:
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                task_ids = data.get("taskIds", [])
+                status = data.get("status")
+                if task_ids and status:
+                    result = update_task_status_batch(self.config, task_ids, status)
+                    self.send_json(result)
+                else:
+                    self.send_json(
+                        {"success": False, "error": "taskIds and status required"}, 400
+                    )
+            except Exception as e:
+                self.send_json({"success": False, "error": str(e)}, 400)
+            return
+
+        self.send_error(404)
 
     def do_POST(self):
         parsed = urlparse(self.path)
@@ -827,10 +1005,11 @@ class COADashHandler(BaseHTTPRequestHandler):
             self.send_error(404, "File not found")
 
 
-
 class ReusableHTTPServer(HTTPServer):
     """HTTPServer with SO_REUSEADDR enabled"""
+
     allow_reuse_address = True
+
 
 if __name__ == "__main__":
     config = load_config()

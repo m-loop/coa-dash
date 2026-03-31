@@ -1,0 +1,49 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦞 COA-dash
+    - generic [ref=e4]:
+      - 'button "💤 #003 mLoop 样本库实施 ▼" [ref=e6] [cursor=pointer]':
+        - generic [ref=e7]: 💤
+        - generic [ref=e8]: "#003 mLoop 样本库实施"
+        - generic [ref=e9]: ▼
+      - generic [ref=e11]: 2 agents active
+      - button "刷新" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+  - generic [ref=e255]:
+    - complementary [ref=e256]:
+      - generic [ref=e257]:
+        - generic [ref=e258]: Projects
+        - generic [ref=e259]:
+          - generic [ref=e260]: coa-dash
+          - generic [ref=e261]: my-app
+      - generic [ref=e262]:
+        - generic [ref=e263]: Sessions
+        - generic [ref=e265]: Cannot connect to OpenCode server on port 4096
+        - button "+ New Session" [ref=e266] [cursor=pointer]
+    - main [ref=e267]:
+      - generic [ref=e269]: coa-dash
+      - generic [ref=e271]: Select a project from the sidebar to start
+      - generic [ref=e272]:
+        - textbox "Type your message..." [ref=e273]
+        - button "Send" [ref=e275] [cursor=pointer]
+      - generic [ref=e276]:
+        - button "Model" [ref=e277] [cursor=pointer]
+        - button "Agent" [ref=e278] [cursor=pointer]
+        - button "Clear" [ref=e279] [cursor=pointer]
+        - button "Compact" [ref=e280] [cursor=pointer]
+  - generic [ref=e96]:
+    - button "Agents" [ref=e97] [cursor=pointer]:
+      - img [ref=e98]
+      - generic [ref=e100]: Agents
+    - button "Tasks" [ref=e101] [cursor=pointer]:
+      - img [ref=e102]
+      - generic [ref=e104]: Tasks
+    - button "Stats" [ref=e105] [cursor=pointer]:
+      - img [ref=e106]
+      - generic [ref=e108]: Stats
+    - button "Config" [ref=e109] [cursor=pointer]:
+      - img [ref=e110]
+      - generic [ref=e111]: Config
+    - button "OpenCode" [active] [ref=e112] [cursor=pointer]:
+      - img [ref=e113]
+      - generic [ref=e115]: OpenCode

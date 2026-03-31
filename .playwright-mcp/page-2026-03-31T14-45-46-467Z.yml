@@ -1,0 +1,100 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦞 COA-dash
+    - generic [ref=e4]:
+      - 'button "💤 #003 mLoop 样本库实施 ▼" [ref=e6] [cursor=pointer]':
+        - generic [ref=e7]: 💤
+        - generic [ref=e8]: "#003 mLoop 样本库实施"
+        - generic [ref=e9]: ▼
+      - generic [ref=e11]: 2 agents active
+      - button "刷新" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+  - generic [ref=e15]:
+    - generic [ref=e16]:
+      - generic [ref=e17]: Agents
+      - generic [ref=e18]:
+        - generic [ref=e21]: main
+        - generic [ref=e24]: coder
+    - generic [ref=e25]:
+      - generic [ref=e26]: Task Summary
+      - generic [ref=e27]:
+        - generic [ref=e28]:
+          - generic [ref=e29]: "109"
+          - generic [ref=e30]: Tasks
+        - generic [ref=e31]:
+          - generic [ref=e32]: "31"
+          - generic [ref=e33]: Pending
+        - generic [ref=e34]:
+          - generic [ref=e35]: "7"
+          - generic [ref=e36]: In Progress
+        - generic [ref=e37]:
+          - generic [ref=e38]: "2"
+          - generic [ref=e39]: Agents
+  - generic [ref=e40]:
+    - generic [ref=e41]:
+      - generic [ref=e42]: Task Statistics
+      - generic [ref=e43]:
+        - generic [ref=e44]:
+          - generic [ref=e45]: "109"
+          - generic [ref=e46]: Total
+        - generic [ref=e47]:
+          - generic [ref=e48]: "66"
+          - generic [ref=e49]: Completed
+        - generic [ref=e50]:
+          - generic [ref=e51]: "31"
+          - generic [ref=e52]: Pending
+        - generic [ref=e53]:
+          - generic [ref=e54]: "7"
+          - generic [ref=e55]: In Progress
+        - generic [ref=e56]:
+          - generic [ref=e57]: "5"
+          - generic [ref=e58]: Blocked
+    - generic [ref=e59]:
+      - generic [ref=e60]: Agent Status
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - generic [ref=e63]: "0"
+          - generic [ref=e64]: Online
+        - generic [ref=e65]:
+          - generic [ref=e66]: "0"
+          - generic [ref=e67]: Busy
+        - generic [ref=e68]:
+          - generic [ref=e69]: "2"
+          - generic [ref=e70]: Idle
+        - generic [ref=e71]:
+          - generic [ref=e72]: "0"
+          - generic [ref=e73]: Offline
+  - generic [ref=e74]:
+    - generic [ref=e76]:
+      - button "All" [ref=e77] [cursor=pointer]
+      - button "Feishu" [ref=e78] [cursor=pointer]
+      - button "WebChat" [ref=e79] [cursor=pointer]
+    - generic [ref=e80]:
+      - generic [ref=e82] [cursor=pointer]:
+        - generic [ref=e83]:
+          - generic [ref=e84]: main/feishu
+          - generic [ref=e85]: ⚪ offline
+        - generic [ref=e86]:
+          - generic [ref=e87]: Talos 自主任务执行
+          - generic [ref=e88]: 11 min ago
+      - generic [ref=e90] [cursor=pointer]:
+        - generic [ref=e91]:
+          - generic [ref=e92]: main/webchat
+          - generic [ref=e93]: ⚪ offline
+        - generic [ref=e95]: 6 hr ago
+  - generic [ref=e96]:
+    - button "Agents" [ref=e97] [cursor=pointer]:
+      - img [ref=e98]
+      - generic [ref=e100]: Agents
+    - button "Tasks" [ref=e101] [cursor=pointer]:
+      - img [ref=e102]
+      - generic [ref=e104]: Tasks
+    - button "Stats" [ref=e105] [cursor=pointer]:
+      - img [ref=e106]
+      - generic [ref=e108]: Stats
+    - button "Config" [ref=e109] [cursor=pointer]:
+      - img [ref=e110]
+      - generic [ref=e111]: Config
+    - button "OpenCode" [ref=e112] [cursor=pointer]:
+      - img [ref=e113]
+      - generic [ref=e115]: OpenCode

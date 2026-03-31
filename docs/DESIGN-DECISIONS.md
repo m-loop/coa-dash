@@ -656,26 +656,171 @@ This document records every design decision made for COA-dash, including reasoni
   ```
 
 ### D71: 实现优先级
-- **Phase 1（当前实现）**:
-  - [x] 设计文档更新（D64-D71）
-  - [ ] 新增 `/api/sessions` 端点
-  - [ ] 实现 `is_live_session()` 判断逻辑
-  - [ ] 修改底部导航
-  - [ ] 实现 Sessions 标签页 UI
-  - [ ] 实现筛选器
-- **Phase 2（后续实现）**:
-  - [ ] 新增 `/api/cron` 端点
-  - [ ] 实现 Cron 标签页
-  - [ ] 分页/虚拟滚动
-  - [ ] Session 详情查看
-  - [ ] Chat 交互界面
+- **Decision**: Phase 1: Sessions 标签页 / Phase 2: Cron 标签页
+- **Reason**: 渐进实现，优先显示活跃对话
+- **Status**: Phase 1 完成
 
 ---
 
-## Summary
+## v0.5.0 Session State + OpenCode Tab (D72-D92)
 
-| Category | Decisions | Status |
-|----------|-----------|--------|
+### D72: Session State Data Source
+- **Decision**: Read from `~/.openclaw/workspace/session-state.json`
+- **Reason**: Contains current task, waiting events, model info
+- **Trade-off**: Depends on openclaw agent to update file
+
+### D73: Session State Position
+- **Decision**: Top bar, right side (before refresh button)
+- **Reason**: 不遮挡主内容，始终可见
+- **Trade-off**: Takes space in top bar
+
+### D74: Session State Polling Interval
+- **Decision**: 30 seconds
+- **Reason**: 平衡实时性和性能
+- **Trade-off**: Not real-time, acceptable for status display
+
+### D75: Session State Icons
+- **Decision**: 💤 idle / 🔄 working / ⏳ waiting / ❓ offline
+- **Reason**: 直观易懂，emoji 通用
+- **Trade-off**: Uses emoji instead of SVG
+
+### D76: Session State Task Enrichment
+- **Decision**: Merge session-state.json + tasks.jsonl
+- **Reason**: 显示完整任务标题、优先级、状态
+- **Implementation**: `/api/session-state` endpoint enriches current_task
+
+### D77: Session State Popup
+- **Decision**: Click to expand popup with details
+- **Reason**: Show more info without cluttering top bar
+- **Trade-off**: Requires tap to see details
+
+### D78: OpenCode UI Approach
+- **Decision**: Chat interface + command buttons, NOT terminal emulator
+- **Reason**: 触屏友好，手机无键盘
+- **Trade-off**: Less flexible than raw terminal
+
+### D79: OpenCode Multi-Project
+- **Decision**: Multiple opencode serve instances (4096-4098)
+- **Reason**: 独立隔离，每个项目一个端口
+- **Trade-off**: 资源占用较高
+
+### D80: OpenCode API Access
+- **Decision**: Proxy through coa-dash (`/api/opencode/*`)
+- **Reason**: 安全可控，统一入口，可加认证
+- **Trade-off**: Additional hop, slightly slower
+
+### D81: OpenCode Proxy Security
+- **Decision**: Whitelist allowed API paths
+- **Reason**: Prevent SSRF, path traversal attacks
+- **Implementation**: Only `/session`, `/agent`, `/config` etc allowed
+
+### D82: OpenCode Session Status Icons
+- **Decision**: 🔵 idle / 🟡 busy (animated) / 🔴 waiting / ✅ done
+- **Reason**: 进度可见，动画表示 busy 状态
+- **Implementation**: CSS animation for progress bar
+
+### D83: OpenCode Mobile Sidebar
+- **Decision**: Hidden by default, hamburger menu or swipe to open
+- **Reason**: 移动端屏幕空间有限
+- **Implementation**: Slide-over panel with overlay
+
+### D84: OpenCode Command Buttons
+- **Decision**: 44px min height, 8px gap, scrollable row
+- **Reason**: 触屏友好，符合 accessibility 标准
+- **Trade-off**: Takes space at bottom
+
+### D85: OpenCode Command Button Actions
+- **Decision**: `/model` → picker, `/agent` → picker, `/clear` → immediate, `/compact` → immediate
+- **Reason**: 频繁操作一键触达
+- **Implementation**: Dropdown pickers for model/agent
+
+### D86: OpenCode Push Notifications
+- **Decision**: On session done, when tab not focused
+- **Reason**: 任务完成提醒
+- **Implementation**: Notification API, request permission after first task
+
+### D87: OpenCode SSE Connection Management
+- **Decision**: Cleanup on page unload, reconnect on error
+- **Reason**: 防止资源泄漏
+- **Implementation**: `beforeunload` event closes EventSource
+
+### D88: OpenCode Projects Configuration
+- **Decision**: JSON file `config/opencode-projects.json`
+- **Reason**: 用户可编辑，声明式配置
+- **Trade-off**: Requires config file, no auto-discovery
+
+### D89: OpenCode systemd Service Template
+- **Decision**: Template service `opencode-serve@.service`
+- **Reason**: 支持多实例，端口作为参数
+- **Implementation**: `systemctl --user start opencode-serve@4096`
+
+### D90: OpenCode ttyd Retention
+- **Decision**: Keep existing ttyd service on port 7681
+- **Reason**: 备用终端访问方式
+- **Trade-off**: Two services running
+
+### D91: OpenCode Default Project
+- **Decision**: First project in config is default
+- **Reason**: 用户打开 OpenCode tab 时有初始选择
+- **Implementation**: Auto-select on tab open
+
+### D92: OpenCode Message History Limit
+- **Decision**: No limit for MVP, virtualize later
+- **Reason**: 简化实现，后续优化
+- **Trade-off**: Long conversations may slow down
+
+### D93: OpenCode Proxy Gzip Handling
+- **Decision**: Add `Accept-Encoding: identity` header to proxy requests
+- **Reason**: OpenCode serve returns gzip-compressed responses by default; Python's urllib doesn't auto-decompress
+- **Trade-off**: Slightly larger network transfer, but simpler implementation
+- **Implementation**: Modified `proxy_opencode_request()` in server.py
+
+### D94: OpenCode Session Source - SQLite vs HTTP API
+- **Decision**: Query SQLite database directly instead of HTTP API
+- **Reason**: 
+  - HTTP API `/session` only returns `projectID="global"` sessions (filtered)
+  - Project-specific sessions (coa-dash, opencode-coa, etc.) are NOT returned
+  - Database contains all sessions including non-global ones
+- **Trade-off**: Direct DB access vs API abstraction
+- **Implementation**: `get_opencode_sessions()` function reads from `~/.local/share/opencode/opencode.db`
+
+### D95: OpenCode Session Filter by Worktree
+- **Decision**: Filter sessions by `project.worktree LIKE '%vault/projects%'`
+- **Reason**: 
+  - Show only sessions from user's project folders
+  - Exclude generic sessions in `~/.openclaw/workspace`, `/tmp`, etc.
+  - Future projects in `vault/projects/` automatically appear
+- **Result**: Shows 3 sessions (coa-dash, opencode-coa, claude-code)
+- **Implementation**: SQL JOIN session↔project, filter by worktree path
+
+### D96: Status Dropdown Design
+- **Decision**: Click status badge to show dropdown menu with 4 options
+- **Reason**: Single-tap interaction, no keyboard, mobile-friendly
+- **Options**: 待处理 / 进行中 / 已完成 / 挂起
+- **Implementation**: `toggleStatusDropdown()`, `selectStatus()`, `setStatus()` functions
+- **API**: `PUT /api/tasks/:id/status`
+
+### D97: Assignee Dropdown Design
+- **Decision**: Click assignee name to show picker with categories
+- **Reason**: Same pattern as status dropdown, consistent UX
+- **Categories**: Humans (Ricky), OpenClaw Agents (main, coder), OpenCode
+- **Implementation**: `toggleAssigneeDropdown()`, `loadAssignees()`, avatar display by type
+- **API**: `PUT /api/tasks/:id/assignee`
+- **Visual**: Color-coded avatars (human=green, openclaw=blue, opencode=orange)
+
+### D98: Batch Status Update API
+- **Decision**: Single API call to update multiple tasks
+- **Reason**: Efficiency for multi-select batch operations
+- **Implementation**: `PUT /api/tasks/status/batch` with `{"task_ids": [...], "status": "..."}`
+- **Response**: `{"success": true, "updated": N}`
+- **Frontend**: Long-press (800ms) to enter batch selection mode
+
+---
+
+## Decision Summary
+
+| Category | IDs | Status |
+|----------|-----|--------|
 | Touch-First Constraints | D1-D6 | Active |
 | Mobile-First Layout | D7-D14 | D8 removed, D10/D12 updated |
 | Card Interaction | D15-D22 | Active, D17/D18 updated in v0.4.1 |
@@ -685,8 +830,11 @@ This document records every design decision made for COA-dash, including reasoni
 | v0.4.1 UI Refinements | D47-D54 | Implemented |
 | v0.4.2 Agent Config Optimization | D55-D62 | Implemented |
 | v0.4.2 UI Filter Refinement | D63 | Implemented |
-| v0.4.3 Sessions Feature | D64-D71 | Phase 1 in progress |
-| **Total Active Decisions** | **71** | (D8 removed) |
+| v0.4.3 Sessions Feature | D64-D71 | Phase 1 complete |
+| v0.5.0 Session State | D72-D77 | Implemented |
+| v0.5.0 OpenCode Tab | D78-D95 | Planned (code lost, needs re-implementation) |
+| v0.5.3 Status/Assignee | D96-D98 | Implemented (uncommitted) |
+| **Total Active Decisions** | **98** | (D8 removed) |
 
 ---
 
@@ -706,6 +854,10 @@ This document records every design decision made for COA-dash, including reasoni
 | 0.4.2 | D55-D62 Added | Agent config source optimization (openclaw.json + cache) |
 | 0.4.2 | D63 Added | Completed tasks toggle switch (visibility control) |
 | 0.4.3 | D64-D71 Added | Sessions feature design (live sessions + cron separation) |
+| 0.5.0 | D72-D77 Added | Session State display in top bar |
+| 0.5.0 | D78-D92 Added | OpenCode tab with chat interface |
+| 0.5.0 | D93 Added | Gzip handling fix for OpenCode proxy |
+| 0.5.0 | D94-D95 Added | SQLite session query with worktree filter |
 
 ---
 
