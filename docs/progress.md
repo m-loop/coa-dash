@@ -2,13 +2,44 @@
 
 ## Current State
 
-**Version**: 0.5.3 (ready to commit)
-**Status**: Documentation complete, ready for git commit
+**Version**: 0.5.4 (OpenCode Tab + Session State)
+**Status**: Implemented and pushed to GitHub
 **Last Updated**: 2026-04-01
 
 ---
 
-## v0.5.3 - Status & Assignee Dropdowns (Ready to Commit)
+## v0.5.4 - OpenCode Tab + Session State (2026-04-01)
+
+### Features Implemented
+- [x] OpenCode tab in bottom nav (replaced Stats)
+- [x] OpenCode page layout with sidebar + chat
+- [x] Session list with status icons
+- [x] Chat interface with command buttons
+- [x] Session State button in top bar
+- [x] Session State popup with task details
+
+### Design Decisions
+- **D78-D92**: OpenCode Tab UI specifications
+- **D73-D77**: Session State display
+
+### API Endpoints Added
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| /api/opencode/projects | GET | List configured OpenCode projects |
+| /api/session-state | GET | Get current openclaw session state |
+| /api/opencode/:port/session/:id/messages | GET | Get session messages |
+| /api/opencode/:port/session/:id/message | POST | Send message to session |
+| /api/opencode/:port/session/:id/command | POST | Send command to session |
+
+### Git Status
+```
+Commit: a193b16
+Pushed: 2026-04-01
+```
+
+---
+
+## v0.5.3 - Status & Assignee Dropdowns (Committed)
 
 ### Features Implemented
 - [x] Click status badge to show dropdown menu
