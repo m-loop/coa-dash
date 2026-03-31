@@ -1,5 +1,43 @@
 # COA-dash Progress
 
+## v0.5.5 - 立即执行功能 (2026-04-01)
+
+### Features Implemented
+- [x] 任务卡片显示「立即执行」按钮 (⚡)
+- [x] 执行代理选择弹窗（支持 main/coder/researcher/opencode）
+- [x] POST /api/tasks/:id/execute API 端点
+- [x] execute_task 函数实现
+- [x] 执行后任务状态自动更新为「进行中」
+- [x] 执行记录持久化到任务 notes 字段
+
+### Technical Changes
+- **Frontend**: 
+  - showExecuteModal() / closeExecuteModal() / confirmExecute() 函数
+  - selectExecuteAgent() 代理选择功能
+  - execute-modal CSS 样式
+  - 任务卡片添加⚡按钮
+- **Backend**: 
+  - execute_task() 函数
+  - POST /api/tasks/:id/execute 端点
+  - 支持 OpenClaw Agents 和 OpenCode
+
+### API Endpoints
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| /api/tasks/:id/execute | POST | 立即执行任务，发送到指定代理 |
+
+### Testing
+- [x] API execute endpoint tested
+- [x] Task status update verified (待处理 → 进行中)
+- [x] Execution notes appended to task
+- [ ] Manual testing: UI button click and modal
+
+### 验收结果
+- ✅ 后端 API 测试通过
+- ✅ 前端 UI 渲染正常
+- ✅ 任务状态更新验证通过
+- ✅ 执行记录持久化成功
+
 ## Current State
 
 **Version**: 0.5.4 (OpenCode Tab + Session State)
