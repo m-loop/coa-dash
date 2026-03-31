@@ -698,6 +698,117 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--accent);
 }
 
+
+.status-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 200;
+  min-width: 100px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  margin-top: 4px;
+  display: none;
+}
+
+.status-dropdown-menu.show {
+  display: block;
+}
+
+.status-dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  min-height: var(--touch-target);
+  display: flex;
+  align-items: center;
+}
+
+.status-dropdown-item:active {
+  background: var(--primary);
+}
+
+.status-dropdown-item.current {
+  color: var(--accent);
+}
+
+/* Batch selection styles */
+.card.selected {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.batch-toolbar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 20px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.batch-toolbar.show {
+  display: flex;
+}
+
+.batch-toolbar .count {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+}
+
+.batch-toolbar .actions {
+  display: flex;
+  gap: 8px;
+}
+
+.batch-toolbar .btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: var(--font-small);
+  cursor: pointer;
+  border: none;
+  min-height: var(--touch-target);
+}
+
+.batch-toolbar .btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.batch-toolbar .btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text);
+}
+
+.batch-status-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 8px;
+  display: none;
+  z-index: 1001;
+}
+
+.batch-status-menu.show {
+  display: block;
+}
+
 /* Expand button for subtasks (D76: Redesigned) */
 .expand-btn {
   display: inline-flex;
@@ -805,6 +916,25 @@ h1, h2, h3, h4, h5, h6 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Swipe-to-delete styles */
+.swipe-container { position: relative; overflow: hidden; }
+.swipe-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; align-items: center; pointer-events: none; }
+.swipe-delete-btn { background: var(--red); color: white; border: none; padding: 0 20px; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: var(--font-body); pointer-events: auto; opacity: 0; transform: translateX(100%); transition: opacity 0.2s, transform 0.2s; }
+.swipe-delete-btn.visible { opacity: 1; transform: translateX(0); }
+.swipe-delete-btn:active { background: #dc2626; }
+.card.swiping { transition: transform 0.1s; }
+.card.swipe-open { transform: translateX(-70px); }
+.confirm-dialog-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.confirm-dialog-overlay.visible { opacity: 1; pointer-events: auto; }
+.confirm-dialog { background: var(--primary); border: 1px solid var(--border); border-radius: 12px; padding: 20px; max-width: 320px; width: 90%; text-align: center; }
+.confirm-dialog-title { font-family: 'Fira Sans', sans-serif; font-size: var(--font-title); font-weight: 600; margin-bottom: 12px; color: var(--text); }
+.confirm-dialog-message { font-size: var(--font-body); color: var(--text-muted); margin-bottom: 20px; }
+.confirm-dialog-actions { display: flex; gap: 12px; justify-content: center; }
+.confirm-dialog-btn { padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: var(--font-body); cursor: pointer; border: none; min-height: 44px; }
+.confirm-dialog-btn.cancel { background: var(--secondary); color: var(--text); }
+.confirm-dialog-btn.delete { background: var(--red); color: white; }
+.confirm-dialog-btn:active { opacity: 0.8; }
 </style>
 </head>
 <body>
@@ -1308,6 +1438,153 @@ function togglePriorityDropdown(badge, taskId, currentPriority) {
   
   // Close on outside click
   setTimeout(() => {
+
+// Swipe-to-delete functionality
+let swipeState = { activeCard: null, startX: 0, currentX: 0, threshold: 70 };
+
+function initSwipe(card) {
+  card.addEventListener('touchstart', handleTouchStart, { passive: true });
+  card.addEventListener('touchmove', handleTouchMove, { passive: true });
+  card.addEventListener('touchend', handleTouchEnd);
+  card.addEventListener('click', handleClickDuringSwipe);
+}
+
+function handleTouchStart(e) {
+  swipeState.activeCard = e.currentTarget;
+  swipeState.startX = e.touches[0].clientX;
+  swipeState.currentX = swipeState.startX;
+  swipeState.activeCard.classList.add('swiping');
+}
+
+function handleTouchMove(e) {
+  if (!swipeState.activeCard) return;
+  const currentX = e.touches[0].clientX;
+  const diff = swipeState.startX - currentX;
+  if (diff > 0) {
+    e.preventDefault();
+    swipeState.currentX = currentX;
+    const moveX = Math.min(diff, 80);
+    swipeState.activeCard.style.transform = 'translateX(-' + moveX + 'px)';
+  }
+}
+
+function handleTouchEnd(e) {
+  if (!swipeState.activeCard) return;
+  const diff = swipeState.startX - swipeState.currentX;
+  if (diff > swipeState.threshold) {
+    swipeState.activeCard.style.transform = 'translateX(-70px)';
+    swipeState.activeCard.classList.add('swipe-open');
+    showDeleteButton(swipeState.activeCard);
+  } else {
+    swipeState.activeCard.style.transform = '';
+    swipeState.activeCard.classList.remove('swipe-open');
+    hideDeleteButton(swipeState.activeCard);
+  }
+  swipeState.activeCard.classList.remove('swiping');
+  swipeState.activeCard = null;
+}
+
+function handleClickDuringSwipe(e) {
+  if (swipeState.activeCard && swipeState.activeCard.classList.contains('swipe-open')) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}
+
+function showDeleteButton(card) {
+  let actions = card.querySelector('.swipe-actions');
+  if (!actions) {
+    actions = document.createElement('div');
+    actions.className = 'swipe-actions';
+    actions.innerHTML = '<button class="swipe-delete-btn visible" onclick="confirmDeleteTask(this)">🗑️ Delete</button>';
+    card.appendChild(actions);
+  } else {
+    const btn = actions.querySelector('.swipe-delete-btn');
+    if (btn) btn.classList.add('visible');
+  }
+}
+
+function hideDeleteButton(card) {
+  const actions = card.querySelector('.swipe-actions');
+  if (actions) {
+    const btn = actions.querySelector('.swipe-delete-btn');
+    if (btn) btn.classList.remove('visible');
+  }
+}
+
+function closeSwipeActions(card) {
+  card.style.transform = '';
+  card.classList.remove('swipe-open');
+  hideDeleteButton(card);
+}
+
+function confirmDeleteTask(btn) {
+  const card = btn.closest('.card');
+  const taskId = card.querySelector('.task-id').textContent.trim();
+  const taskTitle = card.querySelector('.card-title').textContent.trim();
+  showConfirmDialog(taskId, taskTitle);
+}
+
+function showConfirmDialog(taskId, taskTitle) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-dialog-overlay visible';
+  overlay.id = 'confirmOverlay';
+  overlay.innerHTML = '<div class="confirm-dialog"><div class="confirm-dialog-title">Delete Task?</div><div class="confirm-dialog-message">Are you sure you want to delete "' + escapeHtml(taskTitle) + '"?</div><div class="confirm-dialog-actions"><button class="confirm-dialog-btn cancel" onclick="closeConfirmDialog()">Cancel</button><button class="confirm-dialog-btn delete" onclick="executeDeleteTask(\'' + taskId + '\')">Delete</button></div></div>';
+  document.body.appendChild(overlay);
+}
+
+function closeConfirmDialog() {
+  const overlay = document.getElementById('confirmOverlay');
+  if (overlay) {
+    overlay.classList.remove('visible');
+    setTimeout(() => overlay.remove(), 200);
+  }
+}
+
+async function executeDeleteTask(taskId) {
+  try {
+    const res = await fetch('/api/tasks/' + taskId, { method: 'DELETE' });
+    const result = await res.json();
+    closeConfirmDialog();
+    if (result.success) {
+      showToast('Task deleted successfully', 'success');
+      await refreshData(true);
+    } else {
+      showToast(result.error || 'Failed to delete task', 'error');
+    }
+  } catch (err) {
+    closeConfirmDialog();
+    showToast('Network error: ' + err.message, 'error');
+  }
+}
+
+function closeAllSwipeActions() {
+  document.querySelectorAll('.card.swipe-open').forEach(card => {
+    closeSwipeActions(card);
+  });
+}
+
+// Initialize swipe on task cards after render
+function initSwipeOnCards() {
+  document.querySelectorAll('.card').forEach(card => {
+    if (!card.dataset.swipeInitialized) {
+      initSwipe(card);
+      card.dataset.swipeInitialized = 'true';
+    }
+  });
+}
+
+// Re-init swipe after task list is rendered
+const originalRenderTasks = window.renderTasks;
+if (originalRenderTasks) {
+  window.renderTasks = function(container) {
+    originalRenderTasks.call(this, container);
+    setTimeout(initSwipeOnCards, 10);
+  };
+}
+
+// Initial setup
+document.addEventListener('DOMContentLoaded', initSwipeOnCards);
     document.addEventListener('click', function closeDropdown(e) {
       if (!badge.contains(e.target)) {
         menu.classList.remove('show');
@@ -1419,6 +1696,228 @@ $('refreshBtn').onclick = () => refreshData(true);
 // Initialize
 refreshData();
 setInterval(refreshData, 60000);
+
+// Batch selection (long-press multi-select)
+let batchSelectionMode = false;
+let selectedTaskIds = new Set();
+let longPressTimer = null;
+let longPressStarted = false;
+
+function initBatchSelection() {
+  // Add long-press handler to cards
+  document.addEventListener('mousedown', handleLongPressStart);
+  document.addEventListener('mouseup', handleLongPressEnd);
+  document.addEventListener('mouseleave', handleLongPressEnd);
+  document.addEventListener('touchstart', handleLongPressStart, { passive: true });
+  document.addEventListener('touchend', handleLongPressEnd);
+  document.addEventListener('contextmenu', handleContextMenu);
+}
+
+function handleLongPressStart(e) {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  
+  longPressStarted = true;
+  longPressTimer = setTimeout(() => {
+    if (longPressStarted) {
+      enterBatchSelectionMode();
+      toggleCardSelection(card);
+      longPressStarted = false;
+    }
+  }, 800); // 800ms long press
+}
+
+function handleLongPressEnd(e) {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+  longPressStarted = false;
+}
+
+function handleContextMenu(e) {
+  if (batchSelectionMode) {
+    e.preventDefault();
+    const card = e.target.closest('.card');
+    if (card) {
+      toggleCardSelection(card);
+    }
+  }
+}
+
+function enterBatchSelectionMode() {
+  batchSelectionMode = true;
+  showBatchToolbar();
+}
+
+function exitBatchSelectionMode() {
+  batchSelectionMode = false;
+  selectedTaskIds.clear();
+  hideBatchToolbar();
+  document.querySelectorAll('.card.selected').forEach(card => {
+    card.classList.remove('selected');
+  });
+}
+
+function toggleCardSelection(card) {
+  const taskId = card.querySelector('.task-id')?.textContent;
+  if (!taskId) return;
+  
+  if (selectedTaskIds.has(taskId)) {
+    selectedTaskIds.delete(taskId);
+    card.classList.remove('selected');
+  } else {
+    selectedTaskIds.add(taskId);
+    card.classList.add('selected');
+  }
+  
+  updateBatchToolbarCount();
+  
+  if (selectedTaskIds.size === 0) {
+    exitBatchSelectionMode();
+  }
+}
+
+function showBatchToolbar() {
+  let toolbar = document.querySelector('.batch-toolbar');
+  if (!toolbar) {
+    toolbar = document.createElement('div');
+    toolbar.className = 'batch-toolbar show';
+    toolbar.innerHTML = 
+      '<span class="count">已选择 <span id="batchCount">0</span> 个任务</span>' +
+      '<div class="actions">' +
+        '<button class="btn btn-secondary" onclick="exitBatchSelectionMode()">取消</button>' +
+        '<button class="btn btn-primary" onclick="showBatchStatusMenu()">修改状态 ▾</button>' +
+      '</div>' +
+      '<div class="batch-status-menu" id="batchStatusMenu">' +
+        '<div class="status-dropdown-item" onclick="applyBatchStatus(\'待处理\')">待处理</div>' +
+        '<div class="status-dropdown-item" onclick="applyBatchStatus(\'进行中\')">进行中</div>' +
+        '<div class="status-dropdown-item" onclick="applyBatchStatus(\'已完成\')">已完成</div>' +
+        '<div class="status-dropdown-item" onclick="applyBatchStatus(\'挂起\')">挂起</div>' +
+      '</div>';
+    document.body.appendChild(toolbar);
+  } else {
+    toolbar.classList.add('show');
+  }
+}
+
+function hideBatchToolbar() {
+  const toolbar = document.querySelector('.batch-toolbar');
+  if (toolbar) {
+    toolbar.classList.remove('show');
+  }
+  const menu = document.querySelector('.batch-status-menu');
+  if (menu) {
+    menu.classList.remove('show');
+  }
+}
+
+function updateBatchToolbarCount() {
+  const countEl = document.getElementById('batchCount');
+  if (countEl) {
+    countEl.textContent = selectedTaskIds.size;
+  }
+}
+
+function showBatchStatusMenu() {
+  const menu = document.getElementById('batchStatusMenu');
+  if (menu) {
+    menu.classList.toggle('show');
+  }
+}
+
+function applyBatchStatus(status) {
+  if (selectedTaskIds.size === 0) return;
+  setStatusBatch(Array.from(selectedTaskIds), status);
+  exitBatchSelectionMode();
+}
+
+// Initialize batch selection on page load
+document.addEventListener('DOMContentLoaded', initBatchSelection);
+
 </script>
 </body>
 </html>
+// Status dropdown
+function toggleStatusDropdown(badge, taskId, currentStatus) {
+  // Close any existing dropdowns
+  document.querySelectorAll('.status-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+  
+  // Create dropdown if not exists
+  let menu = badge.querySelector('.status-dropdown-menu');
+  if (!menu) {
+    menu = document.createElement('div');
+    menu.className = 'status-dropdown-menu';
+    menu.innerHTML = 
+      '<div class="status-dropdown-item" data-status="待处理" onclick="selectStatus(\'' + taskId + '\', \'待处理\', this)">待处理</div>' +
+      '<div class="status-dropdown-item" data-status="进行中" onclick="selectStatus(\'' + taskId + '\', \'进行中\', this)">进行中</div>' +
+      '<div class="status-dropdown-item" data-status="已完成" onclick="selectStatus(\'' + taskId + '\', \'已完成\', this)">已完成</div>' +
+      '<div class="status-dropdown-item" data-status="挂起" onclick="selectStatus(\'' + taskId + '\', \'挂起\', this)">挂起</div>';
+    badge.appendChild(menu);
+    
+    // Highlight current status
+    menu.querySelectorAll('.status-dropdown-item').forEach(item => {
+      if (item.dataset.status === currentStatus) {
+        item.classList.add('current');
+      }
+    });
+  }
+  
+  menu.classList.toggle('show');
+  
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function closeDropdown(e) {
+      if (!badge.contains(e.target)) {
+        menu.classList.remove('show');
+        document.removeEventListener('click', closeDropdown);
+      }
+    });
+  }, 10);
+}
+
+function selectStatus(taskId, status, item) {
+  setStatus(taskId, status);
+  // Close dropdown
+  const menu = item.closest('.status-dropdown-menu');
+  if (menu) menu.classList.remove('show');
+}
+
+async function setStatus(taskId, status) {
+  try {
+    const res = await fetch('/api/tasks/' + taskId + '/status', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: status })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('状态已更新为 ' + status, 'success');
+      refreshData();
+    } else {
+      showToast('更新失败', 'error');
+    }
+  } catch (e) {
+    showToast('更新失败', 'error');
+  }
+}
+
+async function setStatusBatch(taskIds, status) {
+  try {
+    const res = await fetch('/api/tasks/status/batch', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskIds: taskIds, status: status })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('已更新 ' + data.updated + ' 个任务状态为 ' + status, 'success');
+      refreshData();
+    } else {
+      showToast('批量更新失败', 'error');
+    }
+  } catch (e) {
+    showToast('批量更新失败', 'error');
+  }
+}
+

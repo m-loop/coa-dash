@@ -539,6 +539,105 @@ def update_task_priority(config, task_id, priority):
     return {"success": True, "task": {"taskId": task_id, "priority": priority}}
 
 
+
+def delete_task(config, task_id):
+    """Delete task from tasks.jsonl"""
+    tasks_path = config["tasks"]["path"]
+
+    if not os.path.exists(tasks_path):
+        return {"success": False, "error": "Tasks file not found"}
+
+    lines_data = []
+    found = False
+
+    with open(tasks_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    task = json.loads(line)
+                    if task.get("task_id") == task_id:
+                        found = True
+                        continue  # Skip this line (delete it)
+                    lines_data.append(json.dumps(task, ensure_ascii=False))
+                except:
+                    lines_data.append(line)
+
+    if not found:
+        return {"success": False, "error": "Task not found"}
+
+    with open(tasks_path, "w", encoding="utf-8") as f:
+        for line in lines_data:
+            f.write(line + "\n")
+
+    return {"success": True, "deleted": True}
+
+
+
+def update_task_assignee(config, task_id, assignee):
+    """Update task assignee in tasks.jsonl"""
+    tasks_path = config["tasks"]["path"]
+
+    if not os.path.exists(tasks_path):
+        return {"success": False, "error": "Tasks file not found"}
+
+    lines = []
+    found = False
+
+    with open(tasks_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    task = json.loads(line)
+                    if task.get("task_id") == task_id:
+                        task["assignee"] = assignee if assignee else ""
+                        found = True
+                    lines.append(json.dumps(task, ensure_ascii=False))
+                except:
+                    lines.append(line)
+
+    if not found:
+        return {"success": False, "error": "Task not found"}
+
+    with open(tasks_path, "w", encoding="utf-8") as f:
+        for line in lines:
+            f.write(line + "\n")
+
+    return {"success": True, "task": {"taskId": task_id, "assignee": assignee}}
+
+
+def get_assignees(config):
+    """Get list of available assignees (humans + agents)"""
+    # Human assignees
+    humans = [
+        {"id": "Ricky", "type": "human", "displayName": "Ricky", "avatar": None},
+    ]
+    
+    # OpenClaw Agents from openclaw.json
+    openclaw_agents = []
+    configured_agents = agent_cache.get_agents_list()
+    if configured_agents:
+        for agent_id in configured_agents:
+            openclaw_agents.append({
+                "id": agent_id,
+                "type": "openclaw",
+                "displayName": agent_id.capitalize(),
+                "avatar": None,
+            })
+    
+    # OpenCode Agents
+    opencode_agents = [
+        {"id": "opencode", "type": "opencode", "displayName": "OpenCode", "avatar": None},
+    ]
+    
+    return {
+        "humans": humans,
+        "openclaw": openclaw_agents,
+        "opencode": opencode_agents,
+    }
+
+
 def send_notification(config, task_id, agent_id, notification_type):
     """Send notification to agent via openclaw CLI"""
     templates = {
@@ -605,6 +704,8 @@ class COADashHandler(BaseHTTPRequestHandler):
             agent_filter = query.get("agent", ["all"])[0]
             type_filter = query.get("type", ["all"])[0]
             self.send_json(get_sessions(self.config, agent_filter, type_filter))
+        elif path == "/api/assignees":
+            self.send_json(get_assignees(self.config))
         elif path == "/api/config":
             self.send_json(
                 {
@@ -622,7 +723,20 @@ class COADashHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
-        match = re.match(r"/api/tasks/([^/]+)/priority", path)
+        assignee_match = re.match(r"/api/tasks/([^/]+)/assignee", path)
+        if assignee_match:
+            task_id = assignee_match.group(1)
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                assignee = data.get("assignee", "")
+                result = update_task_assignee(self.config, task_id, assignee)
+                self.send_json(result)
+            except Exception as e:
+                self.send_json({"success": False, "error": str(e)}, 400)
+        else:
+            match = re.match(r"/api/tasks/([^/]+)/priority", path)
         if match:
             task_id = match.group(1)
             content_length = int(self.headers.get("Content-Length", 0))
@@ -677,6 +791,18 @@ class COADashHandler(BaseHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        delete_match = re.match(r"/api/tasks/([^/]+)$", path)
+        if delete_match:
+            task_id = delete_match.group(1)
+            result = delete_task(self.config, task_id)
+            self.send_json(result)
+        else:
+            self.send_error(404)
+
     def send_json(self, data, status=200):
         encoded = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -701,6 +827,11 @@ class COADashHandler(BaseHTTPRequestHandler):
             self.send_error(404, "File not found")
 
 
+
+class ReusableHTTPServer(HTTPServer):
+    """HTTPServer with SO_REUSEADDR enabled"""
+    allow_reuse_address = True
+
 if __name__ == "__main__":
     config = load_config()
     COADashHandler.config = config
@@ -712,4 +843,4 @@ if __name__ == "__main__":
     print(f"   Tailscale: http://100.103.186.109:{port}")
     print(f"   Config: {CONFIG_PATH}")
 
-    HTTPServer((host, port), COADashHandler).serve_forever()
+    ReusableHTTPServer((host, port), COADashHandler).serve_forever()
