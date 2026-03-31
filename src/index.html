@@ -1439,6 +1439,118 @@ h1, h2, h3, h4, h5, h6 {
 .session-state-value {
   color: var(--text);
 }
+
+/* Execute Modal Styles */
+.execute-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.execute-modal {
+  background: var(--primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+}
+
+.execute-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+
+.execute-modal-task {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--secondary);
+  border-radius: 8px;
+}
+
+.execute-agent-option {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  margin: 8px 0;
+  background: var(--secondary);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.execute-agent-option:hover {
+  border-color: var(--accent);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.execute-agent-option.selected {
+  border-color: var(--accent);
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.execute-agent-icon {
+  font-size: 24px;
+  margin-right: 12px;
+}
+
+.execute-agent-info {
+  flex: 1;
+}
+
+.execute-agent-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.execute-agent-type {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.execute-modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.execute-modal-actions .btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-execute {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-execute:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-cancel-execute {
+  background: var(--secondary);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
 </style>
 </head>
 <body>
@@ -1901,6 +2013,7 @@ function renderTaskCard(t, isParent) {
       (t.notes ? '<div class="card-detail"><span class="card-detail-label">Notes</span><span class="card-detail-value">' + escapeHtml(t.notes.substring(0, 100)) + (t.notes.length > 100 ? '...' : '') + '</span></div>' : '') +
       '<div class="card-actions">' +
         '<button class="btn btn-icon btn-small" onclick="event.stopPropagation();sendNotify(\'' + t.task_id + '\')" title="通知">🔔</button>' +
+        '<button class="btn btn-icon btn-small" onclick="event.stopPropagation();showExecuteModal(\'' + t.task_id + '\')" title="立即执行">⚡</button>' +
       '</div>' +
     '</div>';
   
@@ -2292,6 +2405,135 @@ function renderComingSoon(container, name) {
     '<div class="coming-soon-text">' + name + ' 功能将在下一版本中推出</div>' +
   '</div>';
 }
+
+
+// Execute Modal Functions
+let executeModalState = { taskId: null, selectedAgent: null, selectedType: null };
+
+function showExecuteModal(taskId) {
+  executeModalState = { taskId: taskId, selectedAgent: null, selectedType: null };
+  
+  // Get task info
+  const taskCard = document.querySelector('.card[data-task-id="' + taskId + '"]') || 
+                   document.querySelector('.card .task-id');
+  const taskTitle = taskCard ? (taskCard.querySelector('.card-title')?.textContent || 'Task ' + taskId) : 'Task ' + taskId;
+  
+  const overlay = document.getElementById('execute-modal-overlay');
+  if (!overlay) {
+    // Create modal HTML
+    const modalHtml = `
+<div id="execute-modal-overlay" class="execute-modal-overlay" onclick="if(event.target===this)closeExecuteModal()">
+  <div class="execute-modal">
+    <div class="execute-modal-title">⚡ 立即执行</div>
+    <div class="execute-modal-task" id="execute-modal-task-info">Task: ${taskTitle}</div>
+    <div style="margin-bottom:12px;font-size:14px;color:var(--text-muted)">选择执行代理:</div>
+    <div id="execute-agent-list">
+      <div class="execute-agent-option" onclick="selectExecuteAgent(this,'main','openclaw')">
+        <div class="execute-agent-icon">🤖</div>
+        <div class="execute-agent-info">
+          <div class="execute-agent-name">Main Agent</div>
+          <div class="execute-agent-type">OpenClaw - 主代理</div>
+        </div>
+      </div>
+      <div class="execute-agent-option" onclick="selectExecuteAgent(this,'coder','openclaw')">
+        <div class="execute-agent-icon">💻</div>
+        <div class="execute-agent-info">
+          <div class="execute-agent-name">Coder Agent</div>
+          <div class="execute-agent-type">OpenClaw - 编程代理</div>
+        </div>
+      </div>
+      <div class="execute-agent-option" onclick="selectExecuteAgent(this,'researcher','openclaw')">
+        <div class="execute-agent-icon">🔍</div>
+        <div class="execute-agent-info">
+          <div class="execute-agent-name">Researcher Agent</div>
+          <div class="execute-agent-type">OpenClaw - 研究代理</div>
+        </div>
+      </div>
+      <div class="execute-agent-option" onclick="selectExecuteAgent(this,'opencode','opencode')">
+        <div class="execute-agent-icon">📝</div>
+        <div class="execute-agent-info">
+          <div class="execute-agent-name">OpenCode</div>
+          <div class="execute-agent-type">编程助手</div>
+        </div>
+      </div>
+    </div>
+    <div class="execute-modal-actions">
+      <button class="btn btn-cancel-execute" onclick="closeExecuteModal()">取消</button>
+      <button class="btn btn-execute" id="execute-confirm-btn" onclick="confirmExecute()" disabled>执行</button>
+    </div>
+  </div>
+</div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  } else {
+    document.getElementById('execute-modal-task-info').textContent = 'Task: ' + taskTitle;
+    overlay.style.display = 'flex';
+  }
+}
+
+function selectExecuteAgent(optionEl, agentId, agentType) {
+  executeModalState.selectedAgent = agentId;
+  executeModalState.selectedType = agentType;
+  
+  // Update UI
+  document.querySelectorAll('.execute-agent-option').forEach(el => el.classList.remove('selected'));
+  optionEl.classList.add('selected');
+  
+  // Enable execute button
+  const btn = document.getElementById('execute-confirm-btn');
+  if (btn) btn.disabled = false;
+}
+
+function closeExecuteModal() {
+  const overlay = document.getElementById('execute-modal-overlay');
+  if (overlay) {
+    overlay.remove();
+  }
+  executeModalState = { taskId: null, selectedAgent: null, selectedType: null };
+}
+
+async function confirmExecute() {
+  const { taskId, selectedAgent, selectedType } = executeModalState;
+  if (!taskId || !selectedAgent) return;
+  
+  const btn = document.getElementById('execute-confirm-btn');
+  const originalText = btn.textContent;
+  btn.textContent = '执行中...';
+  btn.disabled = true;
+  
+  try {
+    const response = await fetch('/api/tasks/' + taskId + '/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentId: selectedAgent,
+        agentType: selectedType
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      showToast('✅ ' + result.message, 'success');
+      closeExecuteModal();
+      // Refresh tasks to show updated status
+      setTimeout(() => {
+        const tasksContainer = document.getElementById('tasks-container');
+        if (tasksContainer && window.renderTasks) {
+          window.renderTasks(tasksContainer);
+        }
+      }, 500);
+    } else {
+      showToast('❌ 执行失败：' + result.error, 'error');
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  } catch (error) {
+    showToast('❌ 网络错误：' + error.message, 'error');
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
 
 async function renderConfig(container) {
   const data = await fetchAPI('/api/config');

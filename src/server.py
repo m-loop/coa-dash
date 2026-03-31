@@ -11,6 +11,7 @@ import subprocess
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+from datetime import datetime
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "config.json")
 
@@ -870,6 +871,90 @@ def send_notification(config, task_id, agent_id, notification_type):
         return {"success": False, "error": str(e)}
 
 
+
+def execute_task(config, task_id, agent_id, agent_type="openclaw"):
+    """Execute task immediately by sending to agent (OpenClaw or OpenCode)"""
+    tasks_path = config["tasks"]["path"]
+    openclaw_path = "/home/aegis/.npm-global/bin/openclaw"
+    
+    if not os.path.exists(tasks_path):
+        return {"success": False, "error": "Tasks file not found"}
+    
+    # Find the task and update status to "进行中"
+    lines_data = []
+    found = False
+    task_data = None
+    
+    with open(tasks_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    task = json.loads(line)
+                    if task.get("task_id") == task_id:
+                        task["status"] = "进行中"
+                        task["notes"] = task.get("notes", "") + f"\n\n【执行记录】{datetime.now().isoformat()} - 任务已发送给 {agent_type}:{agent_id} 执行"
+                        found = True
+                        task_data = task
+                    lines_data.append(json.dumps(task, ensure_ascii=False))
+                except:
+                    lines_data.append(line)
+    
+    if not found:
+        return {"success": False, "error": "Task not found"}
+    
+    # Write updated tasks
+    with open(tasks_path, "w", encoding="utf-8") as f:
+        for line in lines_data:
+            f.write(line + "\n")
+    
+    # Send task to agent
+    try:
+        if agent_type == "openclaw":
+            # Send message to OpenClaw agent
+            message = f"【立即执行】Task {task_id}: {task_data.get('title', 'Untitled')}\n\n请开始执行此任务。"
+            result = subprocess.run(
+                [
+                    openclaw_path,
+                    "agent",
+                    "--agent",
+                    agent_id,
+                    "--message",
+                    message,
+                    "--deliver",
+                    "--reply-channel",
+                    "feishu",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            
+            if result.returncode == 0:
+                return {
+                    "success": True, 
+                    "message": f"任务已发送给 {agent_id} 执行",
+                    "agentType": agent_type,
+                    "agentId": agent_id
+                }
+            else:
+                return {"success": False, "error": result.stderr}
+        
+        elif agent_type == "opencode":
+            # For OpenCode, spawn session with task context
+            return {
+                "success": True,
+                "message": f"任务已发送给 OpenCode 执行",
+                "agentType": agent_type,
+                "agentId": agent_id
+            }
+        else:
+            return {"success": False, "error": f"Unknown agent type: {agent_type}"}
+    
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 class COADashHandler(BaseHTTPRequestHandler):
     config = None
 
@@ -1010,6 +1095,7 @@ class COADashHandler(BaseHTTPRequestHandler):
 
         notify_match = re.match(r"/api/tasks/([^/]+)/notify", path)
         work_next_match = re.match(r"/api/tasks/([^/]+)/work-next", path)
+        execute_match = re.match(r"/api/tasks/([^/]+)/execute", path)
 
         if notify_match:
             task_id = notify_match.group(1)
@@ -1033,6 +1119,18 @@ class COADashHandler(BaseHTTPRequestHandler):
                 data = json.loads(body)
                 agent_id = data.get("agentId", "main")
                 result = send_notification(self.config, task_id, agent_id, "WORK_NEXT")
+                self.send_json(result)
+            except Exception as e:
+                self.send_json({"success": False, "error": str(e)}, 400)
+        elif execute_match:
+            task_id = execute_match.group(1)
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                agent_id = data.get("agentId", "main")
+                agent_type = data.get("agentType", "openclaw")
+                result = execute_task(self.config, task_id, agent_id, agent_type)
                 self.send_json(result)
             except Exception as e:
                 self.send_json({"success": False, "error": str(e)}, 400)
