@@ -1,0 +1,13 @@
+[Unit]
+Description=COA-dash - Command Orchestration Agent Dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/aegis/vault/projects/coa-dash
+ExecStart=/usr/bin/python3 /home/aegis/vault/projects/coa-dash/src/server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

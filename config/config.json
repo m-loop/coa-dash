@@ -1,0 +1,36 @@
+{
+  "dashboard": {
+    "name": "COA-dash",
+    "emoji": "🦞",
+    "port": 8890,
+    "host": "0.0.0.0",
+    "refreshInterval": 60
+  },
+  "gateway": {
+    "port": 18789,
+    "token": "10045d1aa3d9cd254674814105ec9236eb781fce11969d61",
+    "healthz": "http://localhost:18789/healthz",
+    "readyz": "http://localhost:18789/readyz"
+  },
+  "tasks": {
+    "path": "/home/aegis/vault/tasks/tasks.jsonl",
+    "defaultAgent": "main"
+  },
+  "status": {
+    "busyThresholdSeconds": 30,
+    "idleThresholdMinutes": 5
+  },
+  "agents": {
+    "hierarchy": {
+      "main": ["coder", "opencode", "complex-coding", "codex"]
+    },
+    "sessionsPath": "~/.openclaw/agents"
+  },
+  "ui": {
+    "theme": "dark-oled",
+    "fonts": {
+      "heading": "Fira Sans",
+      "body": "Fira Code"
+    }
+  }
+}

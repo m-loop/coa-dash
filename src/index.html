@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>COA-dash v0.4.4</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --bg: #020617;
+  --primary: #0F172A;
+  --secondary: #1E293B;
+  --accent: #22C55E;
+  --text: #F8FAFC;
+  --text-muted: #94A3B8;
+  --border: #334155;
+  --green: #22C55E;
+  --yellow: #FACC15;
+  --indigo: #6366F1;
+  --slate: #64748B;
+  --red: #EF4444;
+  --orange: #F97316;
+  --font-title: 16px;
+  --font-body: 14px;
+  --font-label: 12px;
+  --font-small: 11px;
+  --top-bar-height: 48px;
+  --bottom-nav-height: 56px;
+  --sidebar-left-width: 240px;
+  --sidebar-right-width: 200px;
+  --card-margin: 8px;
+  --card-padding: 12px;
+  --touch-target: 44px;
+  --transition-fast: 150ms ease-out;
+  --transition-normal: 200ms ease-out;
+  --toast-bg: rgba(0, 0, 0, 0.85);
+}
+
+@media (min-width: 780px) {
+  :root {
+    --font-title: 18px;
+    --font-body: 15px;
+    --font-label: 13px;
+    --font-small: 12px;
+    --top-bar-height: 56px;
+    --card-margin: 12px;
+    --card-padding: 16px;
+  }
+}
+
+html, body {
+  font-family: 'Fira Code', ui-monospace, monospace;
+  font-size: var(--font-body);
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100%;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Fira Sans', system-ui, sans-serif;
+  font-weight: 600;
+}
+
+/* Top Bar */
+.top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--top-bar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--card-padding);
+  background: var(--primary);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+}
+
+.top-bar-logo {
+  font-family: 'Fira Sans', sans-serif;
+  font-size: var(--font-title);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.top-bar-status {
+  display: flex;
+  align-items: center;
+  gap: var(--card-margin);
+  font-size: var(--font-label);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.status-dot.offline { background: var(--red); }
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  background: transparent;
+  border: none;
+  color: var(--text);
+}
+
+.refresh-btn:active { background: var(--secondary); }
+.refresh-btn.loading { animation: spin 1s linear infinite; }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Bottom Nav - Visible in ALL modes (v0.4.0) */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--bottom-nav-height);
+  display: flex;
+  background: var(--primary);
+  border-top: 1px solid var(--border);
+  z-index: 100;
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--touch-target);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: var(--font-small);
+}
+
+.nav-item:active { background: var(--secondary); }
+.nav-item.active { color: var(--accent); }
+
+.nav-item svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Left Sidebar */
+.sidebar-left {
+  display: none;
+  position: fixed;
+  top: var(--top-bar-height);
+  left: 0;
+  bottom: var(--bottom-nav-height);
+  width: var(--sidebar-left-width);
+  background: var(--primary);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: var(--card-padding);
+}
+
+@media (min-width: 780px) {
+  .sidebar-left { display: block; }
+}
+
+/* Right Sidebar (v0.4.0) */
+.sidebar-right {
+  display: none;
+  position: fixed;
+  top: var(--top-bar-height);
+  right: 0;
+  bottom: var(--bottom-nav-height);
+  width: var(--sidebar-right-width);
+  background: var(--primary);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: var(--card-padding);
+}
+
+@media (min-width: 780px) {
+  .sidebar-right { display: block; }
+}
+
+.sidebar-section {
+  margin-bottom: var(--card-padding);
+}
+
+.sidebar-title {
+  font-size: var(--font-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: var(--card-margin);
+  padding-bottom: var(--card-margin);
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-agent {
+  display: flex;
+  align-items: center;
+  gap: var(--card-margin);
+  padding: var(--card-margin);
+  border-radius: 8px;
+  min-height: var(--touch-target);
+}
+
+.sidebar-agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sidebar-agent-dot.online { background: var(--green); }
+.sidebar-agent-dot.busy { background: var(--yellow); }
+.sidebar-agent-dot.idle { background: var(--indigo); }
+.sidebar-agent-dot.offline { background: var(--slate); }
+.sidebar-agent-dot.dead { background: var(--red); }
+.sidebar-agent-dot.sick { background: var(--orange); }
+
+.sidebar-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--card-margin);
+}
+
+.sidebar-stat {
+  text-align: center;
+  padding: var(--card-margin);
+  background: var(--secondary);
+  border-radius: 8px;
+}
+
+.sidebar-stat-value {
+  font-size: var(--font-title);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sidebar-stat-label {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+}
+
+/* Main Content */
+.main-content {
+  margin-top: var(--top-bar-height);
+  padding: var(--card-padding);
+  overflow-y: auto;
+  height: calc(100vh - var(--top-bar-height) - var(--bottom-nav-height));
+  background: var(--bg);
+}
+
+@media (min-width: 780px) {
+  .main-content {
+    margin-left: var(--sidebar-left-width);
+    margin-right: var(--sidebar-right-width);
+  }
+}
+
+/* Filter Bar (v0.4.0 - Two Rows) */
+.filter-bar {
+  background: var(--primary);
+  border-bottom: 1px solid var(--border);
+  margin: calc(-1 * var(--card-padding));
+  margin-bottom: var(--card-padding);
+  padding: var(--card-margin);
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--card-margin);
+  margin-bottom: var(--card-margin);
+}
+
+.filter-row:last-child {
+  margin-bottom: 0;
+}
+
+.filter-label {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-right: var(--card-margin);
+  align-self: center;
+}
+
+.filter-btn {
+  padding: 6px 12px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: var(--font-label);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-height: 32px;
+  font-family: inherit;
+}
+
+.filter-btn:active { background: var(--primary); }
+.filter-btn.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+
+/* Card (v0.4.0 - Two Row Collapsed) */
+.card {
+  background: var(--primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: var(--card-margin);
+  overflow: visible;
+  transition: background var(--transition-fast);
+}
+
+.card:active { background: var(--secondary); }
+
+.card-header {
+  padding: var(--card-padding);
+  cursor: pointer;
+}
+
+/* Two-row card layout */
+.card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-row + .card-row {
+  margin-top: 6px;
+}
+
+.card-row-badges {
+  display: flex;
+  gap: var(--card-margin);
+  flex-wrap: wrap;
+}
+
+.card-id {
+  font-family: 'Fira Sans', sans-serif;
+  font-size: var(--font-title);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.card-title {
+  font-size: var(--font-body);
+  color: var(--text);
+  flex: 1;
+  margin-left: var(--card-margin);
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--card-margin);
+}
+
+.card-time {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+}
+
+.card-activity {
+  font-size: var(--font-small);
+  color: var(--accent);
+  margin-left: var(--card-margin);
+}
+
+.card-body {
+  display: none;
+  padding: 0 var(--card-padding) var(--card-padding);
+  border-top: 1px solid var(--border);
+}
+
+.card.expanded .card-body { display: block; }
+
+.card-detail {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--card-margin) 0;
+  font-size: var(--font-body);
+}
+
+.card-detail-label { color: var(--text-muted); }
+.card-detail-value { color: var(--text); }
+
+.card-actions {
+  display: flex;
+  gap: var(--card-margin);
+  padding-top: var(--card-margin);
+  border-top: 1px solid var(--border);
+  margin-top: var(--card-margin);
+}
+
+.task-id {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: var(--font-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status-online { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+.status-online .dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.status-busy { background: rgba(250, 204, 21, 0.15); color: var(--yellow); }
+.status-busy .dot { background: var(--yellow); animation: pulse 2s ease-in-out infinite; }
+.status-idle { background: rgba(99, 102, 241, 0.15); color: var(--indigo); }
+.status-idle .dot { background: var(--indigo); }
+.status-offline { background: rgba(100, 116, 139, 0.15); color: var(--slate); }
+.status-offline .dot { background: var(--slate); }
+.status-dead { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+.status-dead .dot { background: var(--red); }
+.status-sick { background: rgba(249, 146, 60, 0.15); color: var(--orange); }
+.status-sick .dot { background: var(--orange); }
+
+.status-completed { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+.status-pending { background: rgba(250, 204, 21, 0.15); color: var(--yellow); }
+.status-inprogress { background: rgba(99, 102, 241, 0.15); color: var(--indigo); }
+.status-blocked { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+
+.priority-high { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+.priority-medium { background: rgba(250, 204, 21, 0.15); color: var(--yellow); }
+.priority-low { background: rgba(34, 197, 94, 0.15); color: var(--green); }
+.priority-tbd { background: rgba(100, 116, 139, 0.15); color: var(--slate); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--card-margin);
+  padding: var(--card-margin) var(--card-padding);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: var(--font-label);
+  font-weight: 500;
+  cursor: pointer;
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  transition: all var(--transition-fast);
+  user-select: none;
+  font-family: inherit;
+  background: var(--secondary);
+  color: var(--text);
+}
+
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; pointer-events: none; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+
+.btn-primary:active { background: #16a34a; }
+
+.btn-icon {
+  padding: var(--card-margin);
+}
+
+.btn-small {
+  font-size: var(--font-small);
+  padding: var(--card-margin);
+  min-height: 36px;
+}
+
+.btn-priority {
+  flex: 1;
+  background: var(--secondary);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.btn-priority.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+
+/* Toast */
+.toast-container {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--toast-bg);
+  color: var(--text);
+  padding: var(--card-margin) var(--card-padding);
+  border-radius: 8px;
+  font-size: var(--font-body);
+  white-space: nowrap;
+  animation: toastIn var(--transition-normal) ease-out;
+}
+
+.toast.out { animation: toastOut var(--transition-fast) ease-in forwards; }
+.toast.error { background: rgba(239, 68, 68, 0.9); }
+.toast.success { background: rgba(34, 197, 94, 0.9); }
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-20px); }
+}
+
+/* Error Banner */
+.error-banner {
+  position: fixed;
+  top: var(--top-bar-height);
+  left: 0;
+  right: 0;
+  padding: var(--card-margin) var(--card-padding);
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  font-size: var(--font-body);
+  text-align: center;
+  z-index: 98;
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--card-padding) * 4);
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: var(--card-padding);
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: var(--font-body);
+  color: var(--text-muted);
+}
+
+/* Coming Soon */
+.coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: calc(var(--card-padding) * 4);
+  text-align: center;
+}
+
+.coming-soon-icon {
+  font-size: 64px;
+  margin-bottom: var(--card-padding);
+}
+
+.coming-soon-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: var(--card-margin);
+}
+
+.coming-soon-text {
+  font-size: var(--font-body);
+  color: var(--text-muted);
+}
+
+/* Config */
+.config-section {
+  margin-bottom: var(--card-padding);
+}
+
+.config-title {
+  font-size: var(--font-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: var(--card-margin);
+  padding-bottom: var(--card-margin);
+  border-bottom: 1px solid var(--border);
+}
+
+.config-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--card-margin) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.config-item:last-child { border-bottom: none; }
+.config-label { font-size: var(--font-body); color: var(--text-muted); }
+.config-value { font-size: var(--font-body); color: var(--text); }
+
+/* Priority Dropdown (v0.4.1) */
+.priority-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.priority-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 200;
+  min-width: 100px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  margin-top: 4px;
+  display: none;
+}
+
+.priority-dropdown-menu.show {
+  display: block;
+}
+
+.priority-dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  min-height: var(--touch-target);
+  display: flex;
+  align-items: center;
+}
+
+.priority-dropdown-item:active {
+  background: var(--primary);
+}
+
+.priority-dropdown-item.current {
+  color: var(--accent);
+}
+
+/* Expand button for subtasks (D76: Redesigned) */
+.expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-right: var(--card-margin);
+  transition: transform 200ms ease, color 150ms, border-color 150ms;
+}
+
+.expand-btn:hover {
+  border-color: var(--accent);
+}
+
+.expand-btn:active {
+  background: var(--secondary);
+}
+
+.expand-btn.expanded {
+  transform: rotate(90deg);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.expand-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Subtasks container */
+.subtasks-container {
+  display: none;
+}
+
+.subtasks-container.show {
+  display: block;
+}
+
+/* Toggle Switch for Completed Tasks (D63) */
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  min-height: 32px;
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  user-select: none;
+  transition: all 150ms;
+}
+
+.toggle-switch:active {
+  transform: scale(0.98);
+}
+
+.toggle-switch.active {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.toggle-switch .toggle-dot {
+  width: 16px;
+  height: 10px;
+  background: var(--slate);
+  border-radius: 5px;
+  position: relative;
+  transition: background 150ms;
+}
+
+.toggle-switch.active .toggle-dot {
+  background: var(--green);
+}
+
+.toggle-switch .toggle-dot::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  top: 1px;
+  left: 1px;
+  transition: transform 150ms;
+}
+
+.toggle-switch.active .toggle-dot::after {
+  transform: translateX(6px);
+}
+
+.hidden { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<div class="top-bar">
+  <div class="top-bar-logo">🦞 COA-dash</div>
+  <div class="top-bar-status">
+    <span class="status-dot" id="gatewayDot"></span>
+    <span id="gatewayText">Gateway</span>
+    <button class="refresh-btn" id="refreshBtn" aria-label="刷新">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<div class="sidebar-left" id="sidebarLeft">
+  <div class="sidebar-section">
+    <div class="sidebar-title">Agents</div>
+    <div id="sidebarAgents"></div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-title">Task Summary</div>
+    <div class="sidebar-stats" id="sidebarStats"></div>
+  </div>
+</div>
+
+<div class="sidebar-right" id="sidebarRight">
+  <div class="sidebar-section">
+    <div class="sidebar-title">Task Statistics</div>
+    <div id="sidebarTaskStats"></div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-title">Agent Status</div>
+    <div id="sidebarAgentStats"></div>
+  </div>
+</div>
+
+<div class="main-content" id="mainContent"></div>
+
+<div class="bottom-nav">
+  <button class="nav-item active" data-tab="agents">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+    </svg>
+    <span>Agents</span>
+  </button>
+  <button class="nav-item" data-tab="tasks">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+    </svg>
+    <span>Tasks</span>
+  </button>
+  <button class="nav-item" data-tab="stats">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M18 20V10M12 20V4M6 20v-6"/>
+    </svg>
+    <span>Stats</span>
+  </button>
+  <button class="nav-item" data-tab="config">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="3M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+    </svg>
+    <span>Config</span>
+  </button>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// State
+let currentTab = 'agents';
+let currentStatusFilter = 'all';
+let currentPriorityFilter = 'all';
+let showCompletedTasks = false;  // D63: 默认隐藏已完成任务
+let sessionTypeFilter = 'all';   // D64: Sessions 筛选器
+let taskStats = { total: 0, completed: 0, pending: 0, inProgress: 0, blocked: 0 };
+let agentsData = [];
+let tasksData = [];
+let sessionsData = [];  // D64: Sessions 数据
+
+// Utils
+function $(id) { return document.getElementById(id); }
+
+function showToast(message, type = '') {
+  const container = $('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast' + (type ? ' ' + type : '');
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('out');
+    setTimeout(() => toast.remove(), 200);
+  }, 2000);
+}
+
+async function fetchAPI(endpoint) {
+  try {
+    const res = await fetch(endpoint);
+    return await res.json();
+  } catch (e) {
+    console.error('API error:', e);
+    return null;
+  }
+}
+
+// Data refresh
+async function refreshData(forceRefresh = false) {
+  $('refreshBtn').classList.add('loading');
+  
+  try {
+    const agentsUrl = forceRefresh ? '/api/agents?force=true' : '/api/agents';
+    const [agents, tasks, sessions] = await Promise.all([
+      fetchAPI(agentsUrl),
+      fetchAPI('/api/tasks'),
+      fetchAPI('/api/sessions')
+    ]);
+    
+    if (agents) {
+      // Sort agents by lastActivityAt descending (v0.4.0)
+      agentsData = (agents.agents || []).sort((a, b) => {
+        const aTime = a.lastActivityAt || 0;
+        const bTime = b.lastActivityAt || 0;
+        return bTime - aTime;
+      });
+      updateGatewayStatus(agents.gateway);
+    }
+    
+    if (tasks) {
+      tasksData = tasks.tasks || [];
+      taskStats = tasks.stats || {};
+    }
+    
+    if (sessions) {
+      sessionsData = sessions.sessions || [];
+    }
+    
+    updateSidebars();
+    renderContent();
+  } catch (e) {
+    showToast('刷新失败', 'error');
+  }
+  
+  $('refreshBtn').classList.remove('loading');
+}
+
+function updateGatewayStatus(gateway) {
+  const healthy = gateway?.healthy;
+  const activeAgents = gateway?.activeAgents || 0;
+  $('gatewayDot').classList.toggle('offline', !healthy);
+  // D49: Show active agent count instead of just "Offline"
+  $('gatewayText').textContent = healthy ? (activeAgents + ' agents active') : 'Offline';
+}
+
+// Sidebars
+function updateSidebars() {
+  updateSidebarAgents();
+  updateSidebarStats();
+  updateSidebarTaskStats();
+  updateSidebarAgentStats();
+}
+
+function updateSidebarAgents() {
+  const container = $('sidebarAgents');
+  container.innerHTML = agentsData.map(a => {
+    const statusClass = a.status || 'offline';
+    return '<div class="sidebar-agent">' +
+      '<div class="sidebar-agent-dot ' + statusClass + '"></div>' +
+      '<span>' + a.id + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function updateSidebarStats() {
+  $('sidebarStats').innerHTML = 
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.total || 0) + '</div><div class="sidebar-stat-label">Tasks</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.pending || 0) + '</div><div class="sidebar-stat-label">Pending</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.inProgress || 0) + '</div><div class="sidebar-stat-label">In Progress</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + agentsData.length + '</div><div class="sidebar-stat-label">Agents</div></div>';
+}
+
+function updateSidebarTaskStats() {
+  $('sidebarTaskStats').innerHTML = 
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.total || 0) + '</div><div class="sidebar-stat-label">Total</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.completed || 0) + '</div><div class="sidebar-stat-label">Completed</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.pending || 0) + '</div><div class="sidebar-stat-label">Pending</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.inProgress || 0) + '</div><div class="sidebar-stat-label">In Progress</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.blocked || 0) + '</div><div class="sidebar-stat-label">Blocked</div></div>';
+}
+
+function updateSidebarAgentStats() {
+  const counts = { online: 0, busy: 0, idle: 0, offline: 0 };
+  agentsData.forEach(a => {
+    const s = a.status || 'offline';
+    if (counts[s] !== undefined) counts[s]++;
+  });
+  
+  $('sidebarAgentStats').innerHTML = 
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.online + '</div><div class="sidebar-stat-label">Online</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.busy + '</div><div class="sidebar-stat-label">Busy</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.idle + '</div><div class="sidebar-stat-label">Idle</div></div>' +
+    '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.offline + '</div><div class="sidebar-stat-label">Offline</div></div>';
+}
+
+// Tab switching
+function switchTab(tab) {
+  currentTab = tab;
+  
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === tab);
+  });
+  
+  renderContent();
+}
+
+// Content rendering
+function renderContent() {
+  const container = $('mainContent');
+  
+  switch (currentTab) {
+    case 'agents': renderAgents(container); break;
+    case 'tasks': renderTasks(container); break;
+    case 'stats': renderStats(container); break;
+    case 'config': renderConfig(container); break;
+  }
+}
+
+// Agents page (D74: Shows Sessions in flat format, D79: Expandable)
+function renderAgents(container) {
+  if (sessionsData.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">💬</div><div class="empty-text">No active sessions in last 24h</div></div>';
+    return;
+  }
+  
+  // Filter bar
+  const filters = 
+    '<div class="filter-bar">' +
+      '<div class="filter-row">' +
+        '<button class="filter-btn active" data-filter="sessionType" data-value="all">All</button>' +
+        '<button class="filter-btn" data-filter="sessionType" data-value="feishu">Feishu</button>' +
+        '<button class="filter-btn" data-filter="sessionType" data-value="webchat">WebChat</button>' +
+      '</div>' +
+    '</div>';
+  
+  container.innerHTML = filters + '<div id="sessionList">' + renderSessionList(sessionsData) + '</div>';
+  
+  // Filter handlers
+  container.querySelectorAll('.filter-btn[data-filter="sessionType"]').forEach(btn => {
+    btn.onclick = () => {
+      container.querySelectorAll('.filter-btn[data-filter="sessionType"]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      sessionTypeFilter = btn.dataset.value;
+      const filtered = sessionsData.filter(s => {
+        if (sessionTypeFilter === 'all') return true;
+        return s.channel === sessionTypeFilter;
+      });
+      $('sessionList').innerHTML = renderSessionList(filtered);
+    };
+  });
+}
+
+function renderSessionList(sessions) {
+  return sessions.map(s => renderSessionCard(s)).join('');
+}
+
+function renderSessionCard(s) {
+  const statusClass = s.status || 'offline';
+  const statusDot = s.status === 'online' ? '🟢' : s.status === 'idle' ? '🟡' : '⚪';
+  const jobName = s.jobName || '';
+  const model = s.model || '-';
+  const sessionIdShort = s.sessionId ? s.sessionId.substring(0, 8) + '...' : '-';
+  
+  return '<div class="card" onclick="toggleCard(this)">' +
+    '<div class="card-header">' +
+      '<div class="card-row">' +
+        '<div class="card-id">' + s.agentId + '/' + s.channel + '</div>' +
+        '<span class="status-badge status-' + statusClass + '">' + statusDot + ' ' + s.status + '</span>' +
+      '</div>' +
+      '<div class="card-row">' +
+        (jobName ? '<span class="card-title" style="font-size:var(--font-small);color:var(--text-muted);">' + escapeHtml(jobName.substring(0, 30)) + (jobName.length > 30 ? '...' : '') + '</span>' : '') +
+        '<span class="card-time">' + s.updatedAtAgo + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="card-body">' +
+      '<div class="card-detail"><span class="card-detail-label">Model</span><span class="card-detail-value">' + model + '</span></div>' +
+      '<div class="card-detail"><span class="card-detail-label">Task</span><span class="card-detail-value">' + (jobName || '-') + '</span></div>' +
+      '<div class="card-detail"><span class="card-detail-label">Duration</span><span class="card-detail-value">' + (s.runtimeFormatted || '-') + '</span></div>' +
+      '<div class="card-detail"><span class="card-detail-label">Type</span><span class="card-detail-value">' + (s.chatType || 'direct') + '</span></div>' +
+      '<div class="card-detail"><span class="card-detail-label">Session</span><span class="card-detail-value">' + sessionIdShort + '</span></div>' +
+    '</div>' +
+  '</div>';
+}
+
+// Stats page (D75)
+function renderStats(container) {
+  const counts = { online: 0, busy: 0, idle: 0, offline: 0 };
+  agentsData.forEach(a => {
+    const s = a.status || 'offline';
+    if (counts[s] !== undefined) counts[s]++;
+  });
+  
+  container.innerHTML = 
+    '<div class="config-section">' +
+      '<div class="config-title">Task Statistics</div>' +
+      '<div class="sidebar-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--card-margin);">' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.total || 0) + '</div><div class="sidebar-stat-label">Total</div></div>' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.completed || 0) + '</div><div class="sidebar-stat-label">Completed</div></div>' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.pending || 0) + '</div><div class="sidebar-stat-label">Pending</div></div>' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.inProgress || 0) + '</div><div class="sidebar-stat-label">In Progress</div></div>' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.blocked || 0) + '</div><div class="sidebar-stat-label">Blocked</div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="config-section">' +
+      '<div class="config-title">Agent Status</div>' +
+      '<div class="sidebar-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--card-margin);">' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.online + '</div><div class="sidebar-stat-label">Online</div></div>' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.busy + '</div><div class="sidebar-stat-label">Busy</div></div>' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.idle + '</div><div class="sidebar-stat-label">Idle</div></div>' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.offline + '</div><div class="sidebar-stat-label">Offline</div></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="config-section">' +
+      '<div class="config-title">Sessions</div>' +
+      '<div class="sidebar-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--card-margin);">' +
+        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (sessionsData.length || 0) + '</div><div class="sidebar-stat-label">Active (24h)</div></div>' +
+      '</div>' +
+    '</div>';
+}
+
+// Tasks page
+function renderTasks(container) {
+  if (tasksData.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No tasks found</div></div>';
+    return;
+  }
+  
+  // Two-row filter bar (v0.4.2: Toggle for completed tasks)
+  const filters = 
+    '<div class="filter-bar">' +
+      '<div class="filter-row">' +
+        '<button class="filter-btn active" data-filter="status" data-value="all">All</button>' +
+        '<button class="filter-btn" data-filter="status" data-value="进行中">进行中</button>' +
+        '<button class="filter-btn" data-filter="status" data-value="待处理">待处理</button>' +
+        '<button class="filter-btn" data-filter="status" data-value="挂起">挂起</button>' +
+        '<span class="toggle-switch" id="showCompletedToggle"><span class="toggle-dot"></span>Done</span>' +
+      '</div>' +
+      '<div class="filter-row">' +
+        '<span class="filter-label">Priority:</span>' +
+        '<button class="filter-btn active" data-filter="priority" data-value="all">All</button>' +
+        '<button class="filter-btn" data-filter="priority" data-value="高">高</button>' +
+        '<button class="filter-btn" data-filter="priority" data-value="中">中</button>' +
+        '<button class="filter-btn" data-filter="priority" data-value="低">低</button>' +
+        '<button class="filter-btn" data-filter="priority" data-value="待定">待定</button>' +
+      '</div>' +
+    '</div>';
+  
+  const tasks = renderFilteredTasks();
+  container.innerHTML = filters + '<div id="taskList">' + tasks + '</div>';
+  
+  // Filter button handlers
+  container.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.onclick = () => {
+      const filterType = btn.dataset.filter;
+      const filterValue = btn.dataset.value;
+      
+      // Update active state for this filter type only
+      container.querySelectorAll('.filter-btn[data-filter="' + filterType + '"]').forEach(b => {
+        b.classList.remove('active');
+      });
+      btn.classList.add('active');
+      
+      // Update filter state
+      if (filterType === 'status') {
+        currentStatusFilter = filterValue;
+      } else {
+        currentPriorityFilter = filterValue;
+      }
+      
+      // Re-render task list
+      $('taskList').innerHTML = renderFilteredTasks();
+    };
+  });
+  
+  // D63: Toggle for completed tasks
+  const toggle = $('showCompletedToggle');
+  if (toggle) {
+    toggle.onclick = (e) => {
+      e.stopPropagation();
+      showCompletedTasks = !showCompletedTasks;
+      toggle.classList.toggle('active', showCompletedTasks);
+      $('taskList').innerHTML = renderFilteredTasks();
+    };
+  }
+}
+
+function renderFilteredTasks() {
+  // Filter parent tasks first
+  const filteredParents = tasksData.filter(t => {
+    // D63: 已完成任务通过 Toggle 控制
+    if (t.status === '已完成') {
+      return showCompletedTasks;
+    }
+    // Status filter applies to non-completed tasks
+    const statusMatch = currentStatusFilter === 'all' || t.status === currentStatusFilter;
+    // Priority filter only applies to parent tasks
+    const priorityMatch = currentPriorityFilter === 'all' || (t.priority || '待定') === currentPriorityFilter;
+    return statusMatch && priorityMatch;
+  });
+  
+  return filteredParents.map(t => renderTaskCard(t, true)).join('');
+}
+
+function renderTaskCard(t, isParent) {
+  const statusMap = { '已完成': 'completed', '待处理': 'pending', '进行中': 'inprogress', '挂起': 'blocked' };
+  const priorityMap = { '高': 'high', '中': 'medium', '低': 'low', '待定': 'tbd' };
+  const statusClass = statusMap[t.status] || 'pending';
+  const priorityClass = priorityMap[t.priority] || 'tbd';
+  const currentPriority = t.priority || '待定';
+  const hasChildren = t.children && t.children.length > 0;
+  
+  // D47: Subtasks collapsed by default
+  // D48: Priority badge clickable with dropdown
+  // D51: Show owner in collapsed card
+  const ownerHtml = t.assignee ? '<span class="card-time">@' + t.assignee + '</span>' : '';
+  
+  // D76: SVG chevron for expand button
+  const expandBtnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>';
+  
+  // Two-row card layout with priority dropdown
+  let html = '<div class="card" data-status="' + t.status + '" data-priority="' + currentPriority + '" data-parent="' + (isParent ? 'true' : 'false') + '" onclick="toggleCard(this)">' +
+    '<div class="card-header">' +
+      '<div class="card-row">' +
+        (hasChildren ? '<button class="expand-btn" onclick="event.stopPropagation();toggleSubtasks(this)">' + expandBtnSvg + '</button>' : '') +
+        '<span class="task-id">' + t.task_id + '</span>' +
+        '<span class="card-title">' + escapeHtml(t.title) + '</span>' +
+      '</div>' +
+      '<div class="card-row">' +
+        '<div class="card-row-badges">' +
+          '<span class="status-badge status-' + statusClass + '">' + t.status + '</span>' +
+          (isParent ? '<span class="status-badge priority-' + priorityClass + ' priority-dropdown" onclick="event.stopPropagation();togglePriorityDropdown(this, \'' + t.task_id + '\', \'' + currentPriority + '\')">' + currentPriority + ' ▾</span>' : '') +
+        '</div>' +
+        ownerHtml +
+      '</div>' +
+    '</div>' +
+    '<div class="card-body">' +
+      (t.assignee ? '<div class="card-detail"><span class="card-detail-label">Assignee</span><span class="card-detail-value">' + t.assignee + '</span></div>' : '') +
+      (t.risk_level ? '<div class="card-detail"><span class="card-detail-label">Risk</span><span class="card-detail-value">' + t.risk_level + '</span></div>' : '') +
+      (t.notes ? '<div class="card-detail"><span class="card-detail-label">Notes</span><span class="card-detail-value">' + escapeHtml(t.notes.substring(0, 100)) + (t.notes.length > 100 ? '...' : '') + '</span></div>' : '') +
+      '<div class="card-actions">' +
+        '<button class="btn btn-icon btn-small" onclick="event.stopPropagation();sendNotify(\'' + t.task_id + '\')" title="通知">🔔</button>' +
+      '</div>' +
+    '</div>';
+  
+  // D47: Subtasks hidden by default
+  if (hasChildren) {
+    html += '<div class="subtasks-container" style="margin-left:16px;margin-top:8px;">' + 
+      t.children.map(c => renderTaskCard(c, false)).join('') + 
+    '</div>';
+  }
+  
+  html += '</div>';
+  return html;
+}
+
+// D47: Toggle subtasks visibility (D76: Use CSS rotation)
+function toggleSubtasks(btn) {
+  const card = btn.closest('.card');
+  const subtasks = card.querySelector('.subtasks-container');
+  if (subtasks) {
+    subtasks.classList.toggle('show');
+    btn.classList.toggle('expanded', subtasks.classList.contains('show'));
+  }
+}
+
+// D48: Priority dropdown
+function togglePriorityDropdown(badge, taskId, currentPriority) {
+  // Close any existing dropdowns
+  document.querySelectorAll('.priority-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+  
+  // Create dropdown if not exists
+  let menu = badge.querySelector('.priority-dropdown-menu');
+  if (!menu) {
+    menu = document.createElement('div');
+    menu.className = 'priority-dropdown-menu';
+    menu.innerHTML = 
+      '<div class="priority-dropdown-item" data-priority="高" onclick="selectPriority(\'' + taskId + '\', \'高\', this)">高</div>' +
+      '<div class="priority-dropdown-item" data-priority="中" onclick="selectPriority(\'' + taskId + '\', \'中\', this)">中</div>' +
+      '<div class="priority-dropdown-item" data-priority="低" onclick="selectPriority(\'' + taskId + '\', \'低\', this)">低</div>' +
+      '<div class="priority-dropdown-item" data-priority="待定" onclick="selectPriority(\'' + taskId + '\', \'待定\', this)">待定</div>';
+    badge.appendChild(menu);
+    
+    // Highlight current priority
+    menu.querySelectorAll('.priority-dropdown-item').forEach(item => {
+      if (item.dataset.priority === currentPriority) {
+        item.classList.add('current');
+      }
+    });
+  }
+  
+  menu.classList.toggle('show');
+  
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function closeDropdown(e) {
+      if (!badge.contains(e.target)) {
+        menu.classList.remove('show');
+        document.removeEventListener('click', closeDropdown);
+      }
+    });
+  }, 10);
+}
+
+function selectPriority(taskId, priority, item) {
+  setPriority(taskId, priority);
+  // Close dropdown
+  const menu = item.closest('.priority-dropdown-menu');
+  if (menu) menu.classList.remove('show');
+}
+
+function toggleCard(card) {
+  card.classList.toggle('expanded');
+}
+
+// Actions
+async function setPriority(taskId, priority) {
+  try {
+    const res = await fetch('/api/tasks/' + taskId + '/priority', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ priority: priority })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('优先级已更新为 ' + priority, 'success');
+      refreshData();
+    } else {
+      showToast('更新失败', 'error');
+    }
+  } catch (e) {
+    showToast('更新失败', 'error');
+  }
+}
+
+async function sendNotify(taskId) {
+  try {
+    const res = await fetch('/api/tasks/' + taskId + '/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: 'main', type: 'PRIORITY_UP' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('通知已发送', 'success');
+    } else {
+      showToast('发送失败', 'error');
+    }
+  } catch (e) {
+    showToast('发送失败', 'error');
+  }
+}
+
+// Placeholder pages
+function renderComingSoon(container, name) {
+  container.innerHTML = '<div class="coming-soon">' +
+    '<div class="coming-soon-icon">🚧</div>' +
+    '<div class="coming-soon-title">Coming Soon</div>' +
+    '<div class="coming-soon-text">' + name + ' 功能将在下一版本中推出</div>' +
+  '</div>';
+}
+
+async function renderConfig(container) {
+  const data = await fetchAPI('/api/config');
+  
+  if (!data) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-text">无法加载配置</div></div>';
+    return;
+  }
+  
+  container.innerHTML = 
+    '<div class="config-section">' +
+      '<div class="config-title">Dashboard</div>' +
+      '<div class="config-item"><span class="config-label">Name</span><span class="config-value">' + (data.dashboard?.name || '-') + '</span></div>' +
+      '<div class="config-item"><span class="config-label">Port</span><span class="config-value">' + (data.dashboard?.port || '-') + '</span></div>' +
+      '<div class="config-item"><span class="config-label">Refresh</span><span class="config-value">' + (data.dashboard?.refreshInterval || 60) + 's</span></div>' +
+    '</div>' +
+    '<div class="config-section">' +
+      '<div class="config-title">Gateway</div>' +
+      '<div class="config-item"><span class="config-label">Port</span><span class="config-value">' + (data.gateway?.port || '-') + '</span></div>' +
+      '<div class="config-item"><span class="config-label">Status</span><span class="config-value">' + (data.gateway?.healthy ? '✓ Healthy' : '✗ Offline') + '</span></div>' +
+    '</div>' +
+    '<div class="config-section">' +
+      '<div class="config-title">Status Thresholds</div>' +
+      '<div class="config-item"><span class="config-label">Busy</span><span class="config-value">' + (data.status?.busyThresholdSeconds || 30) + 's</span></div>' +
+      '<div class="config-item"><span class="config-label">Idle</span><span class="config-value">' + (data.status?.idleThresholdMinutes || 5) + 'min</span></div>' +
+    '</div>';
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Event handlers
+document.querySelectorAll('.nav-item').forEach(nav => {
+  nav.onclick = () => switchTab(nav.dataset.tab);
+});
+
+$('refreshBtn').onclick = () => refreshData(true);
+
+// Initialize
+refreshData();
+setInterval(refreshData, 60000);
+</script>
+</body>
+</html>
