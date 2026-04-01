@@ -37,6 +37,7 @@
 - OpenCode sessions not loading → `switchTab()` async data loading
 
 ### Commits
+- `e1003fc` docs: Compact progress.md
 - `c67d156` docs: Update TEST-REPORT.md
 - `6f15144` fix: OpenCode sessions + add test-cases.md
 
