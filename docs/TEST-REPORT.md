@@ -1,117 +1,132 @@
-# COA-dash MVP Test Report
+# COA-dash E2E Test Report
 
-**Date**: 2026-03-31 13:38:51  
-**Version**: 0.3.0
+**Date**: 2026-04-01  
+**Version**: 0.5.4  
+**Tester**: OpenCode (automated)  
+**Environment**: Playwright MCP (Chromium)
 
 ---
 
 ## Test Results Summary
 
-| Category | Tests | Status |
-|----------|-------|--------|
-| Service | 1 | ✅ PASS |
-| API Endpoints | 8 | ✅ PASS |
-| Data Validation | 4 | ✅ PASS |
-| UI Components | 9 | ✅ PASS |
-| **Total** | **22** | **✅ ALL PASS** |
+| Category | Tests | Passed | Status |
+|----------|-------|--------|--------|
+| P0 (Critical) | 7 | 7 | ✅ PASS |
+| P1 (Important) | 4 | 4 | ✅ PASS |
+| API Endpoints | 7 | 7 | ✅ PASS |
+| **Total** | **18** | **18** | **✅ ALL PASS** |
 
 ---
 
-## 1. Service Tests
+## 1. P0 Test Cases
 
-| Test | Expected | Actual | Status |
-|------|----------|--------|--------|
-| systemd service active | active | active | ✅ |
-
----
-
-## 2. API Endpoint Tests
-
-| Method | Endpoint | HTTP Code | Status |
-|--------|----------|-----------|--------|
-| GET | `/` | 200 | ✅ |
-| GET | `/api/agents` | 200 | ✅ |
-| GET | `/api/tasks` | 200 | ✅ |
-| GET | `/api/gateway/status` | 200 | ✅ |
-| GET | `/api/config` | 200 | ✅ |
-| PUT | `/api/tasks/:id/priority` | 200 | ✅ |
-| POST | `/api/tasks/:id/notify` | 200 | ✅ |
-| GET | `/api/tasks?status=待处理` | 200 | ✅ |
+| TC ID | Test Case | Expected | Actual | Status |
+|-------|-----------|----------|--------|--------|
+| TC-001 | 页面加载验证 | Title "COA-dash v0.5.4", 4 nav tabs | As expected | ✅ |
+| TC-002 | Session State 按钮 | Popup shows status/model | As expected | ✅ |
+| TC-003 | OpenCode Tab 导航 | Session list + chat UI | As expected | ✅ |
+| TC-004 | OpenCode Session 列表 | 3 sessions displayed | 3 sessions | ✅ |
+| TC-005 | 优先级下拉 | 高/中/低/待定 options | As expected | ✅ |
+| TC-006 | 状态下拉 | 4 status options | As expected | ✅ |
+| TC-008 | Mobile 响应式 | Sidebars hidden, nav visible | As expected | ✅ |
 
 ---
 
-## 3. Data Validation
+## 2. P1 Test Cases
+
+| TC ID | Test Case | Expected | Actual | Status |
+|-------|-----------|----------|--------|--------|
+| TC-007 | 责任人下拉 | 3 categories displayed | As expected | ✅ |
+| TC-009 | 任务卡片展开 | Details + actions visible | As expected | ✅ |
+| TC-010 | API 端点验证 | All HTTP 200 | All HTTP 200 | ✅ |
+| TC-011 | 批量状态更新 | Batch toolbar works | As expected | ✅ |
+
+---
+
+## 3. API Endpoint Tests
+
+| Method | Endpoint | HTTP Code | Response Time | Status |
+|--------|----------|-----------|---------------|--------|
+| GET | `/api/agents` | 200 | < 100ms | ✅ |
+| GET | `/api/tasks` | 200 | < 100ms | ✅ |
+| GET | `/api/sessions` | 200 | < 100ms | ✅ |
+| GET | `/api/opencode/projects` | 200 | < 50ms | ✅ |
+| GET | `/api/opencode/sessions` | 200 | < 100ms | ✅ |
+| GET | `/api/session-state` | 200 | < 50ms | ✅ |
+| GET | `/api/assignees` | 200 | < 50ms | ✅ |
+
+---
+
+## 4. Responsive Tests
+
+| Viewport | Width | Height | Layout | Status |
+|----------|-------|--------|--------|--------|
+| Desktop | Default | Default | Sidebars visible | ✅ |
+| Mobile (Mate X6 folded) | 410px | 890px | Sidebars hidden, hamburger menu | ✅ |
+
+---
+
+## 5. Data Validation
 
 | Metric | Value |
 |--------|-------|
-| Agents loaded | 6 |
-| Total tasks | 87 |
-| Pending tasks | 15 |
-| In Progress | 6 |
-| Completed | 61 |
+| Agents loaded | 2 (main, coder) |
+| Total tasks | 110 |
+| Pending tasks | 24 |
+| In Progress | 8 |
+| Completed | 73 |
+| OpenCode sessions | 3 |
+| Projects configured | 2 (coa-dash, my-app) |
 
 ---
 
-## 4. UI Component Tests
+## 6. Bugs Found and Fixed
 
-| Component | Count | Status |
-|-----------|-------|--------|
-| Tabs (Agents/Tasks/Stats/Chat/Config) | 5 | ✅ |
-| Touch-target references | 9 | ✅ |
-| Dark mode color refs | 1 | ✅ |
-| Accent color refs | 2 | ✅ |
-| Responsive breakpoints | 4 | ✅ |
-| Font references (Fira) | 5 | ✅ |
-| Bottom nav refs | 6 | ✅ |
-| Sidebar refs | 35 | ✅ |
-| Toast container refs | 2 | ✅ |
+| Bug ID | Description | Severity | Status |
+|--------|-------------|----------|--------|
+| #1 | OpenCode sessions not loading on tab switch | High | ✅ Fixed |
 
----
+### Bug #1 Details
 
-## 5. Known Limitations
+**Problem**: Clicking OpenCode tab showed "No sessions" even though API returned 3 sessions.
 
-### openclaw CLI Not in PATH
+**Root Cause**: `switchTab()` rendered OpenCode page before async data loaded.
 
-**Impact**: Notification feature returns `success: false`
+**Fix**: Made `switchTab()` async with `await loadOpenCodeProjects()` and `await loadOpenCodeSessions()` before `renderContent()`.
 
-**Workaround**: 
-- Agent status uses fallback to `sessions.json`
-- All other features work normally
-- Non-blocking issue
-
-**Resolution**: Add openclaw to PATH or update config with full path
+**Commit**: `6f15144`
 
 ---
 
-## Test Commands Used
+## 7. Console Errors (Non-blocking)
+
+| Error | Impact | Action |
+|-------|--------|--------|
+| SVG circle attribute r error | Cosmetic only | Ignore |
+| Missing favicon.ico | Expected (not added) | Ignore |
+
+---
+
+## 8. Test Evidence
+
+- Playwright snapshots: `.playwright-mcp/page-*.yml`
+- Test case design: `docs/test-cases.md`
+- Screenshot: `opencode-tab-test.png`
+
+---
+
+## 9. Test Commands
 
 ```bash
-# Service status
-systemctl --user is-active coa-dash
-
-# API endpoints
-curl -s http://localhost:8890/api/agents
-curl -s http://localhost:8890/api/tasks
-curl -s http://localhost:8890/api/gateway/status
-curl -s http://localhost:8890/api/config
-
-# Priority update
-curl -X PUT -H "Content-Type: application/json" \
-  -d '{"priority":"中"}' \
-  http://localhost:8890/api/tasks/001/priority
-
-# Notification
-curl -X POST -H "Content-Type: application/json" \
-  -d '{"agentId":"main","type":"PRIORITY_UP"}' \
-  http://localhost:8890/api/tasks/001/notify
-
-# Task filter
-curl -s 'http://localhost:8890/api/tasks?status=待处理'
+# API endpoint tests
+curl -s -o /dev/null -w "%{http_code}" localhost:8890/api/agents
+curl -s -o /dev/null -w "%{http_code}" localhost:8890/api/opencode/sessions
+curl -s -o /dev/null -w "%{http_code}" localhost:8890/api/session-state
 ```
 
 ---
 
-## Access URLs
+## 10. Access URLs
 
 | Type | URL |
 |------|-----|
@@ -120,4 +135,23 @@ curl -s 'http://localhost:8890/api/tasks?status=待处理'
 
 ---
 
-**Conclusion**: COA-dash MVP v0.3.0 passes all functional tests. Ready for use.
+## Conclusion
+
+**COA-dash v0.5.4 passes all E2E tests.**
+
+- ✅ All P0 tests passed (100%)
+- ✅ All P1 tests passed (100%)
+- ✅ All API endpoints working
+- ✅ Mobile responsive layout verified
+- ✅ Bug found during testing fixed and committed
+
+**Recommendation**: Ready for deployment.
+
+---
+
+## Version History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 0.5.4 | 2026-04-01 | OpenCode Tab + Session State + E2E tests |
+| 0.3.0 | 2026-03-31 | Initial MVP test report |
