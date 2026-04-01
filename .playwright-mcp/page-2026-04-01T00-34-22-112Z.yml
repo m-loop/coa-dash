@@ -1,0 +1,317 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦞 COA-dash
+    - generic [ref=e4]:
+      - button "💤 idle" [ref=e5] [cursor=pointer]:
+        - generic [ref=e6]: 💤
+        - generic [ref=e7]: idle
+      - generic [ref=e9]: 2 agents active
+      - button "刷新" [ref=e10] [cursor=pointer]:
+        - img [ref=e11]
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]: Agents
+      - generic [ref=e40]:
+        - generic [ref=e191]: main
+        - generic [ref=e194]: coder
+    - generic [ref=e16]:
+      - generic [ref=e17]: Task Summary
+      - generic [ref=e47]:
+        - generic [ref=e195]:
+          - generic [ref=e196]: "110"
+          - generic [ref=e197]: Tasks
+        - generic [ref=e198]:
+          - generic [ref=e199]: "24"
+          - generic [ref=e200]: Pending
+        - generic [ref=e201]:
+          - generic [ref=e202]: "8"
+          - generic [ref=e203]: In Progress
+        - generic [ref=e204]:
+          - generic [ref=e205]: "2"
+          - generic [ref=e206]: Agents
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]: Task Statistics
+      - generic [ref=e60]:
+        - generic [ref=e207]:
+          - generic [ref=e208]: "110"
+          - generic [ref=e209]: Total
+        - generic [ref=e210]:
+          - generic [ref=e211]: "73"
+          - generic [ref=e212]: Completed
+        - generic [ref=e213]:
+          - generic [ref=e214]: "24"
+          - generic [ref=e215]: Pending
+        - generic [ref=e216]:
+          - generic [ref=e217]: "8"
+          - generic [ref=e218]: In Progress
+        - generic [ref=e219]:
+          - generic [ref=e220]: "5"
+          - generic [ref=e221]: Blocked
+    - generic [ref=e21]:
+      - generic [ref=e22]: Agent Status
+      - generic [ref=e76]:
+        - generic [ref=e222]:
+          - generic [ref=e223]: "0"
+          - generic [ref=e224]: Online
+        - generic [ref=e225]:
+          - generic [ref=e226]: "0"
+          - generic [ref=e227]: Busy
+        - generic [ref=e228]:
+          - generic [ref=e229]: "2"
+          - generic [ref=e230]: Idle
+        - generic [ref=e231]:
+          - generic [ref=e232]: "0"
+          - generic [ref=e233]: Offline
+  - generic [ref=e23]:
+    - generic [ref=e234]:
+      - generic [ref=e235]:
+        - button "All" [ref=e236] [cursor=pointer]
+        - button "进行中" [ref=e237] [cursor=pointer]
+        - button "待处理" [ref=e238] [cursor=pointer]
+        - button "挂起" [ref=e239] [cursor=pointer]
+        - generic [ref=e240] [cursor=pointer]: Done
+      - generic [ref=e242]:
+        - generic [ref=e243]: "Priority:"
+        - button "All" [ref=e244] [cursor=pointer]
+        - button "高" [ref=e245] [cursor=pointer]
+        - button "中" [ref=e246] [cursor=pointer]
+        - button "低" [ref=e247] [cursor=pointer]
+        - button "待定" [ref=e248] [cursor=pointer]
+    - generic [ref=e249]:
+      - generic [ref=e251] [cursor=pointer]:
+        - generic [ref=e252]:
+          - generic [ref=e253]: "002"
+          - generic [ref=e254]: Google Drive 集成打通
+        - generic [ref=e255]:
+          - generic [ref=e256]:
+            - generic [ref=e257]: 进行中
+            - generic [ref=e258]: 高 ▾
+          - generic [ref=e259]: "@main ▾"
+      - generic [ref=e261] [cursor=pointer]:
+        - generic [ref=e262]:
+          - button [ref=e263]:
+            - img [ref=e264]
+          - generic [ref=e266]: "003"
+          - generic [ref=e267]: mLoop 样本库实施
+        - generic [ref=e268]:
+          - generic [ref=e269]:
+            - generic [ref=e270]: 进行中
+            - generic [ref=e271]: 高 ▾
+          - generic [ref=e272]: "@Ricky ▾"
+      - generic [ref=e274] [cursor=pointer]:
+        - generic [ref=e275]:
+          - button [ref=e276]:
+            - img [ref=e277]
+          - generic [ref=e279]: "004"
+          - generic [ref=e280]: Google Keep 集成打通
+        - generic [ref=e281]:
+          - generic [ref=e282]:
+            - generic [ref=e283]: 待处理
+            - generic [ref=e284]: 低 ▾
+          - generic [ref=e285]: 未分配 ▾
+      - generic [ref=e287] [cursor=pointer]:
+        - generic [ref=e288]:
+          - button [ref=e289]:
+            - img [ref=e290]
+          - generic [ref=e292]: "005"
+          - generic [ref=e293]: 飞书回复 emoji 更换
+        - generic [ref=e294]:
+          - generic [ref=e295]:
+            - generic [ref=e296]: 挂起
+            - generic [ref=e297]: 低 ▾
+          - generic [ref=e298]: "@Ricky ▾"
+      - generic [ref=e300] [cursor=pointer]:
+        - generic [ref=e301]:
+          - button [ref=e302]:
+            - img [ref=e303]
+          - generic [ref=e305]: "007"
+          - generic [ref=e306]: Agent 架构设计与实现（5 角色 + 并发规则 + 注册表）
+        - generic [ref=e307]:
+          - generic [ref=e308]:
+            - generic [ref=e309]: 进行中
+            - generic [ref=e310]: 高 ▾
+          - generic [ref=e311]: 未分配 ▾
+      - generic [ref=e313] [cursor=pointer]:
+        - generic [ref=e314]:
+          - generic [ref=e315]: "008"
+          - generic [ref=e316]: 调用 opencode 编程机制设计
+        - generic [ref=e317]:
+          - generic [ref=e318]:
+            - generic [ref=e319]: 进行中
+            - generic [ref=e320]: 中 ▾
+          - generic [ref=e321]: 未分配 ▾
+      - generic [ref=e323] [cursor=pointer]:
+        - generic [ref=e324]:
+          - generic [ref=e325]: "009"
+          - generic [ref=e326]: Watchdog 每两分钟播报信息发到群聊【挂起 - 短期不迁移群聊】
+        - generic [ref=e327]:
+          - generic [ref=e328]:
+            - generic [ref=e329]: 挂起
+            - generic [ref=e330]: 待定 ▾
+          - generic [ref=e331]: "@Ricky ▾"
+      - generic [ref=e333] [cursor=pointer]:
+        - generic [ref=e334]:
+          - generic [ref=e335]: "017"
+          - generic [ref=e336]: 设计系统级周期性归档和 fallback 机制（防止系统把自己搞挂）
+        - generic [ref=e337]:
+          - generic [ref=e338]:
+            - generic [ref=e339]: 待处理
+            - generic [ref=e340]: 高 ▾
+          - generic [ref=e341]: "@Ricky ▾"
+      - generic [ref=e343] [cursor=pointer]:
+        - generic [ref=e344]:
+          - button [ref=e345]:
+            - img [ref=e346]
+          - generic [ref=e348]: "019"
+          - generic [ref=e349]: Talos 架构升级（Ricky 架构设计方法论迁移）
+        - generic [ref=e350]:
+          - generic [ref=e351]:
+            - generic [ref=e352]: 挂起
+            - generic [ref=e353]: 高 ▾
+          - generic [ref=e354]: 未分配 ▾
+      - generic [ref=e356] [cursor=pointer]:
+        - generic [ref=e357]:
+          - generic [ref=e358]: "021"
+          - generic [ref=e359]: mLoop 三层三库实施
+        - generic [ref=e360]:
+          - generic [ref=e361]:
+            - generic [ref=e362]: 待处理
+            - generic [ref=e363]: 高 ▾
+          - generic [ref=e364]: "@Ricky ▾"
+      - generic [ref=e366] [cursor=pointer]:
+        - generic [ref=e367]:
+          - generic [ref=e368]: "022"
+          - generic [ref=e369]: Gateway 看门狗系统
+        - generic [ref=e370]:
+          - generic [ref=e371]:
+            - generic [ref=e372]: 待处理
+            - generic [ref=e373]: 待定 ▾
+          - generic [ref=e374]: "@Ricky ▾"
+      - generic [ref=e376] [cursor=pointer]:
+        - generic [ref=e377]:
+          - generic [ref=e378]: "023"
+          - generic [ref=e379]: 每周任务列表审视
+        - generic [ref=e380]:
+          - generic [ref=e381]:
+            - generic [ref=e382]: 待处理
+            - generic [ref=e383]: 高 ▾
+          - generic [ref=e384]: "@Ricky ▾"
+      - generic [ref=e386] [cursor=pointer]:
+        - generic [ref=e387]:
+          - generic [ref=e388]: "026"
+          - generic [ref=e389]: Micro Loop 品牌注册
+        - generic [ref=e390]:
+          - generic [ref=e391]:
+            - generic [ref=e392]: 进行中
+            - generic [ref=e393]: 待定 ▾
+          - generic [ref=e394]: 未分配 ▾
+      - generic [ref=e396] [cursor=pointer]:
+        - generic [ref=e397]:
+          - generic [ref=e398]: "028"
+          - generic [ref=e399]: 实施 mLoop P1 改进：KV Cache 复用 + 分层压缩策略
+        - generic [ref=e400]:
+          - generic [ref=e401]:
+            - generic [ref=e402]: 进行中
+            - generic [ref=e403]: 待定 ▾
+          - generic [ref=e404]: "@Ricky ▾"
+      - generic [ref=e406] [cursor=pointer]:
+        - generic [ref=e407]:
+          - generic [ref=e408]: "033"
+          - generic [ref=e409]: 创建 Auto-Improvement Agent（通用自主优化引擎）
+        - generic [ref=e410]:
+          - generic [ref=e411]:
+            - generic [ref=e412]: 挂起
+            - generic [ref=e413]: 待定 ▾
+          - generic [ref=e414]: 未分配 ▾
+      - generic [ref=e416] [cursor=pointer]:
+        - generic [ref=e417]:
+          - generic [ref=e418]: "034"
+          - generic [ref=e419]: 注册海外苹果账户
+        - generic [ref=e420]:
+          - generic [ref=e421]:
+            - generic [ref=e422]: 待处理
+            - generic [ref=e423]: 低 ▾
+          - generic [ref=e424]: 未分配 ▾
+      - generic [ref=e426] [cursor=pointer]:
+        - generic [ref=e427]:
+          - generic [ref=e428]: H-004
+          - generic [ref=e429]: 配置每日 21:00 cron
+        - generic [ref=e430]:
+          - generic [ref=e431]:
+            - generic [ref=e432]: 待处理
+            - generic [ref=e433]: 待定 ▾
+          - generic [ref=e434]: "@Ricky ▾"
+      - generic [ref=e436] [cursor=pointer]:
+        - generic [ref=e437]:
+          - generic [ref=e438]: H-006
+          - generic [ref=e439]: 集成到记录流程
+        - generic [ref=e440]:
+          - generic [ref=e441]:
+            - generic [ref=e442]: 待处理
+            - generic [ref=e443]: 待定 ▾
+          - generic [ref=e444]: "@Ricky ▾"
+      - generic [ref=e446] [cursor=pointer]:
+        - generic [ref=e447]:
+          - generic [ref=e448]: H-010
+          - generic [ref=e449]: 配置每月 1 日 cron
+        - generic [ref=e450]:
+          - generic [ref=e451]:
+            - generic [ref=e452]: 待处理
+            - generic [ref=e453]: 待定 ▾
+          - generic [ref=e454]: "@Ricky ▾"
+      - generic [ref=e456] [cursor=pointer]:
+        - generic [ref=e457]:
+          - button [ref=e458]:
+            - img [ref=e459]
+          - generic [ref=e461]: "034"
+          - generic [ref=e462]: 学习 Claude Code 架构并创建 Talos 增强方案
+        - generic [ref=e463]:
+          - generic [ref=e464]:
+            - generic [ref=e465]: 待处理
+            - generic [ref=e466]: 低 ▾
+          - generic [ref=e467]: "@Talos ▾"
+      - generic [ref=e469] [cursor=pointer]:
+        - generic [ref=e470]:
+          - button [ref=e471]:
+            - img [ref=e472]
+          - generic [ref=e474]: "036"
+          - generic [ref=e475]: 测试 GLM Coding Plan 登录流程 (chrome-devtools)
+        - generic [ref=e476]:
+          - generic [ref=e477]:
+            - generic [ref=e478]: 进行中
+            - generic [ref=e479]: 高 ▾
+          - generic [ref=e480]: "@Talos ▾"
+      - generic [ref=e482] [cursor=pointer]:
+        - generic [ref=e483]:
+          - button [ref=e484]:
+            - img [ref=e485]
+          - generic [ref=e487]: "037"
+          - generic [ref=e488]: 抢购 GLM Coding Plan Lite 套餐
+        - generic [ref=e489]:
+          - generic [ref=e490]:
+            - generic [ref=e491]: 待处理
+            - generic [ref=e492]: 高 ▾
+          - generic [ref=e493]: "@Talos ▾"
+      - generic [ref=e495] [cursor=pointer]:
+        - generic [ref=e496]:
+          - generic [ref=e497]: "039"
+          - generic [ref=e498]: 设计任务风险等级动态调整机制
+        - generic [ref=e499]:
+          - generic [ref=e500]:
+            - generic [ref=e501]: 待处理
+            - generic [ref=e502]: 中 ▾
+          - generic [ref=e503]: 未分配 ▾
+  - generic [ref=e24]:
+    - button "Agents" [ref=e25] [cursor=pointer]:
+      - img [ref=e26]
+      - generic [ref=e28]: Agents
+    - button "Tasks" [active] [ref=e29] [cursor=pointer]:
+      - img [ref=e30]
+      - generic [ref=e32]: Tasks
+    - button "OpenCode" [ref=e33] [cursor=pointer]:
+      - img [ref=e34]
+      - generic [ref=e36]: OpenCode
+    - button "Config" [ref=e37] [cursor=pointer]:
+      - img [ref=e38]
+      - generic [ref=e39]: Config

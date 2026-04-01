@@ -1768,12 +1768,17 @@ function updateSidebarAgentStats() {
 }
 
 // Tab switching
-function switchTab(tab) {
+async function switchTab(tab) {
   currentTab = tab;
   
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.tab === tab);
   });
+  
+  if (tab === 'opencode') {
+    await loadOpenCodeProjects();
+    await loadOpenCodeSessions();
+  }
   
   renderContent();
 }

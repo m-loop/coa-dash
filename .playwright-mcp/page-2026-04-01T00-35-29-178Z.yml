@@ -1,0 +1,56 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦞 COA-dash
+    - generic [ref=e4]:
+      - button "💤 idle" [ref=e5] [cursor=pointer]:
+        - generic [ref=e6]: 💤
+        - generic [ref=e7]: idle
+      - generic [ref=e9]: 2 agents active
+      - button "刷新" [ref=e10] [cursor=pointer]:
+        - img [ref=e11]
+  - generic [ref=e509]:
+    - generic [ref=e510]:
+      - combobox [ref=e512] [cursor=pointer]:
+        - option "coa-dash" [selected]
+        - option "my-app"
+      - generic [ref=e513]:
+        - generic [ref=e514] [cursor=pointer]:
+          - generic [ref=e515]: 🔵
+          - generic [ref=e516]: coa-dash
+          - generic [ref=e517]: now
+        - generic [ref=e518] [cursor=pointer]:
+          - generic [ref=e519]: 🔵
+          - generic [ref=e520]: OpenCode 升级
+          - generic [ref=e521]: now
+        - generic [ref=e522] [cursor=pointer]:
+          - generic [ref=e523]: 🔵
+          - generic [ref=e524]: 解析readme文件
+          - generic [ref=e525]: now
+    - generic [ref=e526]:
+      - generic [ref=e527]:
+        - button "☰" [ref=e528] [cursor=pointer]
+        - generic [ref=e529]: OpenCode
+        - button [ref=e530] [cursor=pointer]:
+          - img [ref=e531]
+      - generic [ref=e535]: Select a session
+      - generic [ref=e536]:
+        - generic [ref=e537]:
+          - button "Compact" [ref=e538] [cursor=pointer]
+          - button "Clear" [ref=e539] [cursor=pointer]
+          - button "Model ▾" [ref=e540] [cursor=pointer]
+        - generic [ref=e541]:
+          - textbox "Type a message..." [ref=e542]
+          - button "Send" [ref=e543] [cursor=pointer]
+  - generic [ref=e24]:
+    - button "Agents" [ref=e25] [cursor=pointer]:
+      - img [ref=e26]
+      - generic [ref=e28]: Agents
+    - button "Tasks" [ref=e29] [cursor=pointer]:
+      - img [ref=e30]
+      - generic [ref=e32]: Tasks
+    - button "OpenCode" [active] [ref=e33] [cursor=pointer]:
+      - img [ref=e34]
+      - generic [ref=e36]: OpenCode
+    - button "Config" [ref=e37] [cursor=pointer]:
+      - img [ref=e38]
+      - generic [ref=e39]: Config

@@ -1,0 +1,42 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦞 COA-dash
+    - generic [ref=e4]:
+      - button "💤 idle" [ref=e5] [cursor=pointer]:
+        - generic [ref=e6]: 💤
+        - generic [ref=e7]: idle
+      - generic [ref=e9]: 2 agents active
+      - button "刷新" [ref=e10] [cursor=pointer]:
+        - img [ref=e11]
+  - generic [ref=e1132]:
+    - generic [ref=e1133]:
+      - combobox [ref=e1135] [cursor=pointer]
+      - generic [ref=e1138]: No sessions
+    - generic [ref=e1139]:
+      - generic [ref=e1140]:
+        - button "☰" [ref=e1141] [cursor=pointer]
+        - generic [ref=e1142]: OpenCode
+        - button [ref=e1143] [cursor=pointer]:
+          - img [ref=e1144]
+      - generic [ref=e1148]: Select a session
+      - generic [ref=e1149]:
+        - generic [ref=e1150]:
+          - button "Compact" [ref=e1151] [cursor=pointer]
+          - button "Clear" [ref=e1152] [cursor=pointer]
+          - button "Model ▾" [ref=e1153] [cursor=pointer]
+        - generic [ref=e1154]:
+          - textbox "Type a message..." [ref=e1155]
+          - button "Send" [ref=e1156] [cursor=pointer]
+  - generic [ref=e24]:
+    - button "Agents" [ref=e25] [cursor=pointer]:
+      - img [ref=e26]
+      - generic [ref=e28]: Agents
+    - button "Tasks" [ref=e29] [cursor=pointer]:
+      - img [ref=e30]
+      - generic [ref=e32]: Tasks
+    - button "OpenCode" [active] [ref=e33] [cursor=pointer]:
+      - img [ref=e34]
+      - generic [ref=e36]: OpenCode
+    - button "Config" [ref=e37] [cursor=pointer]:
+      - img [ref=e38]
+      - generic [ref=e39]: Config

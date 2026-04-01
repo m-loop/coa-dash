@@ -908,12 +908,14 @@ def execute_task(config, task_id, agent_id, agent_type="openclaw"):
         for line in lines_data:
             f.write(line + "\n")
     
-    # Send task to agent
+    # Send task to agent (async - don't wait for completion)
     try:
         if agent_type == "openclaw":
-            # Send message to OpenClaw agent
+            # Send message to OpenClaw agent using background process
             message = f"【立即执行】Task {task_id}: {task_data.get('title', 'Untitled')}\n\n请开始执行此任务。"
-            result = subprocess.run(
+            
+            # Use Popen for async execution (don't block HTTP response)
+            subprocess.Popen(
                 [
                     openclaw_path,
                     "agent",
@@ -925,20 +927,18 @@ def execute_task(config, task_id, agent_id, agent_type="openclaw"):
                     "--reply-channel",
                     "feishu",
                 ],
-                capture_output=True,
-                text=True,
-                timeout=30,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,  # Detach from parent process
             )
             
-            if result.returncode == 0:
-                return {
-                    "success": True, 
-                    "message": f"任务已发送给 {agent_id} 执行",
-                    "agentType": agent_type,
-                    "agentId": agent_id
-                }
-            else:
-                return {"success": False, "error": result.stderr}
+            return {
+                "success": True, 
+                "message": f"任务已发送给 {agent_id} 执行（异步执行中）",
+                "agentType": agent_type,
+                "agentId": agent_id,
+                "executionMode": "async"
+            }
         
         elif agent_type == "opencode":
             # For OpenCode, spawn session with task context
@@ -952,6 +952,24 @@ def execute_task(config, task_id, agent_id, agent_type="openclaw"):
             return {"success": False, "error": f"Unknown agent type: {agent_type}"}
     
     except Exception as e:
+        # Rollback task status on error
+        rollback_lines = []
+        with open(tasks_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        task = json.loads(line)
+                        if task.get("task_id") == task_id:
+                            task["status"] = "待处理"
+                        rollback_lines.append(json.dumps(task, ensure_ascii=False))
+                    except:
+                        rollback_lines.append(line)
+        
+        with open(tasks_path, "w", encoding="utf-8") as f:
+            for line in rollback_lines:
+                f.write(line + "\n")
+        
         return {"success": False, "error": str(e)}
 
 

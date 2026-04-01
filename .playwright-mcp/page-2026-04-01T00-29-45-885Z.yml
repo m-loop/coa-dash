@@ -1,0 +1,96 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]: 🦞 COA-dash
+    - generic [ref=e4]:
+      - button "💤 idle" [ref=e5] [cursor=pointer]:
+        - generic [ref=e6]: 💤
+        - generic [ref=e7]: idle
+      - generic [ref=e9]: 2 agents active
+      - button "刷新" [ref=e10] [cursor=pointer]:
+        - img [ref=e11]
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]: Agents
+      - generic [ref=e40]:
+        - generic [ref=e43]: main
+        - generic [ref=e46]: coder
+    - generic [ref=e16]:
+      - generic [ref=e17]: Task Summary
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - generic [ref=e49]: "110"
+          - generic [ref=e50]: Tasks
+        - generic [ref=e51]:
+          - generic [ref=e52]: "24"
+          - generic [ref=e53]: Pending
+        - generic [ref=e54]:
+          - generic [ref=e55]: "8"
+          - generic [ref=e56]: In Progress
+        - generic [ref=e57]:
+          - generic [ref=e58]: "2"
+          - generic [ref=e59]: Agents
+  - generic [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]: Task Statistics
+      - generic [ref=e60]:
+        - generic [ref=e61]:
+          - generic [ref=e62]: "110"
+          - generic [ref=e63]: Total
+        - generic [ref=e64]:
+          - generic [ref=e65]: "73"
+          - generic [ref=e66]: Completed
+        - generic [ref=e67]:
+          - generic [ref=e68]: "24"
+          - generic [ref=e69]: Pending
+        - generic [ref=e70]:
+          - generic [ref=e71]: "8"
+          - generic [ref=e72]: In Progress
+        - generic [ref=e73]:
+          - generic [ref=e74]: "5"
+          - generic [ref=e75]: Blocked
+    - generic [ref=e21]:
+      - generic [ref=e22]: Agent Status
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - generic [ref=e78]: "0"
+          - generic [ref=e79]: Online
+        - generic [ref=e80]:
+          - generic [ref=e81]: "0"
+          - generic [ref=e82]: Busy
+        - generic [ref=e83]:
+          - generic [ref=e84]: "2"
+          - generic [ref=e85]: Idle
+        - generic [ref=e86]:
+          - generic [ref=e87]: "0"
+          - generic [ref=e88]: Offline
+  - generic [ref=e121]:
+    - generic [ref=e122]:
+      - combobox [ref=e124] [cursor=pointer]
+      - generic [ref=e127]: No sessions
+    - generic [ref=e128]:
+      - generic [ref=e129]:
+        - generic [ref=e130]: OpenCode
+        - button [ref=e131] [cursor=pointer]:
+          - img [ref=e132]
+      - generic [ref=e136]: Select a session
+      - generic [ref=e137]:
+        - generic [ref=e138]:
+          - button "Compact" [ref=e139] [cursor=pointer]
+          - button "Clear" [ref=e140] [cursor=pointer]
+          - button "Model ▾" [ref=e141] [cursor=pointer]
+        - generic [ref=e142]:
+          - textbox "Type a message..." [ref=e143]
+          - button "Send" [ref=e144] [cursor=pointer]
+  - generic [ref=e24]:
+    - button "Agents" [ref=e25] [cursor=pointer]:
+      - img [ref=e26]
+      - generic [ref=e28]: Agents
+    - button "Tasks" [ref=e29] [cursor=pointer]:
+      - img [ref=e30]
+      - generic [ref=e32]: Tasks
+    - button "OpenCode" [active] [ref=e33] [cursor=pointer]:
+      - img [ref=e34]
+      - generic [ref=e36]: OpenCode
+    - button "Config" [ref=e37] [cursor=pointer]:
+      - img [ref=e38]
+      - generic [ref=e39]: Config
