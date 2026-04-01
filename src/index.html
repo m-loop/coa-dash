@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>COA-dash v0.5.4</title>
+<title>COA-dash v0.6.0</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap');
 
@@ -654,6 +654,67 @@ h1, h2, h3, h4, h5, h6 {
 .config-item:last-child { border-bottom: none; }
 .config-label { font-size: var(--font-body); color: var(--text-muted); }
 .config-value { font-size: var(--font-body); color: var(--text); }
+
+/* Stats (Phase 2) */
+.stats-section {
+  margin-bottom: var(--card-padding);
+  padding: var(--card-padding);
+  background: var(--primary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.stats-title {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: var(--card-margin);
+}
+
+.stats-bar-container {
+  height: 8px;
+  background: var(--secondary);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.stats-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.stats-bar-label {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-bottom: var(--card-margin);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--card-margin);
+}
+
+.stats-item {
+  text-align: center;
+  padding: var(--card-margin);
+  background: var(--secondary);
+  border-radius: 6px;
+}
+
+.stats-value {
+  display: block;
+  font-size: var(--font-title);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stats-label {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+}
 
 /* Priority Dropdown (v0.4.1) */
 .priority-dropdown {
@@ -1622,11 +1683,11 @@ h1, h2, h3, h4, h5, h6 {
      </svg>
      <span>OpenCode</span>
    </button>
-   <button class="nav-item" data-tab="config">
+   <button class="nav-item" data-tab="stats">
      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-       <circle cx="12" cy="12" r="3M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+       <path d="M18 20V10M12 20V4M6 20v-6"/>
      </svg>
-     <span>Config</span>
+     <span>Stats</span>
    </button>
  </div>
 
@@ -1786,12 +1847,12 @@ async function switchTab(tab) {
 // Content rendering
 function renderContent() {
   const container = $('mainContent');
-  
+
   switch (currentTab) {
     case 'agents': renderAgents(container); break;
     case 'tasks': renderTasks(container); break;
     case 'opencode': renderOpenCode(container); break;
-    case 'config': renderConfig(container); break;
+    case 'stats': renderStats(container); break;
   }
 }
 
@@ -2537,6 +2598,61 @@ async function confirmExecute() {
     btn.textContent = originalText;
     btn.disabled = false;
   }
+}
+
+
+// Stats page (Phase 2)
+async function renderStats(container) {
+  const data = await fetchAPI('/api/stats');
+
+  if (!data) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-text">无法加载统计</div></div>';
+    return;
+  }
+
+  const agents = data.agents || {};
+  const tasks = data.tasks || {};
+  const sessions = data.sessions || {};
+
+  // Agent utilization bar
+  const utilization = agents.utilizationPercent || 0;
+  const utilColor = utilization >= 75 ? 'var(--green)' : utilization >= 50 ? 'var(--yellow)' : 'var(--slate)';
+
+  container.innerHTML =
+    '<div class="stats-section">' +
+      '<div class="stats-title">🤖 Agent Utilization</div>' +
+      '<div class="stats-bar-container">' +
+        '<div class="stats-bar" style="width:' + utilization + '%;background:' + utilColor + '"></div>' +
+      '</div>' +
+      '<div class="stats-bar-label">' + utilization + '% utilized</div>' +
+      '<div class="stats-grid">' +
+        '<div class="stats-item"><span class="stats-value" style="color:var(--green)">' + (agents.online || 0) + '</span><span class="stats-label">Online</span></div>' +
+        '<div class="stats-item"><span class="stats-value" style="color:var(--yellow)">' + (agents.busy || 0) + '</span><span class="stats-label">Busy</span></div>' +
+        '<div class="stats-item"><span class="stats-value" style="color:var(--indigo)">' + (agents.idle || 0) + '</span><span class="stats-label">Idle</span></div>' +
+        '<div class="stats-item"><span class="stats-value" style="color:var(--slate)">' + (agents.offline || 0) + '</span><span class="stats-label">Offline</span></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="stats-section">' +
+      '<div class="stats-title">📋 Task Progress</div>' +
+      '<div class="stats-bar-container">' +
+        '<div class="stats-bar" style="width:' + (tasks.completionRate || 0) + '%;background:var(--accent)"></div>' +
+      '</div>' +
+      '<div class="stats-bar-label">' + (tasks.completionRate || 0) + '% complete</div>' +
+      '<div class="stats-grid">' +
+        '<div class="stats-item"><span class="stats-value">' + (tasks.total || 0) + '</span><span class="stats-label">Total</span></div>' +
+        '<div class="stats-item"><span class="stats-value" style="color:var(--green)">' + (tasks.completed || 0) + '</span><span class="stats-label">Completed</span></div>' +
+        '<div class="stats-item"><span class="stats-value" style="color:var(--yellow)">' + (tasks.inProgress || 0) + '</span><span class="stats-label">In Progress</span></div>' +
+        '<div class="stats-item"><span class="stats-value" style="color:var(--slate)">' + (tasks.pending || 0) + '</span><span class="stats-label">Pending</span></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="stats-section">' +
+      '<div class="stats-title">💬 Session Activity (24h)</div>' +
+      '<div class="stats-grid">' +
+        '<div class="stats-item"><span class="stats-value">' + (sessions.active24h || 0) + '</span><span class="stats-label">Active</span></div>' +
+        '<div class="stats-item"><span class="stats-value">' + (sessions.feishu || 0) + '</span><span class="stats-label">Feishu</span></div>' +
+        '<div class="stats-item"><span class="stats-value">' + (sessions.webchat || 0) + '</span><span class="stats-label">WebChat</span></div>' +
+      '</div>' +
+    '</div>';
 }
 
 

@@ -4,6 +4,7 @@ COA-dash - Command Orchestration Agent Dashboard
 Mobile-first, touch-first dashboard for AI agent orchestration
 """
 
+import fcntl
 import json
 import os
 import re
@@ -17,8 +18,25 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "config.js
 
 
 def load_config():
+    """Load config from JSON file with environment variable overrides.
+
+    Security-sensitive values can be overridden via environment variables:
+    - OPENCLAW_GATEWAY_TOKEN: Overrides config.gateway.token
+    - COA_ALLOWED_ORIGINS: Comma-separated list of allowed CORS origins
+    """
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+        config = json.load(f)
+
+    # Environment variable overrides for security-sensitive values
+    if os.environ.get("OPENCLAW_GATEWAY_TOKEN"):
+        if "gateway" not in config:
+            config["gateway"] = {}
+        config["gateway"]["token"] = os.environ["OPENCLAW_GATEWAY_TOKEN"]
+
+    if os.environ.get("COA_ALLOWED_ORIGINS"):
+        config["allowedOrigins"] = os.environ["COA_ALLOWED_ORIGINS"].split(",")
+
+    return config
 
 
 class AgentConfigCache:
@@ -505,168 +523,282 @@ def get_tasks(config, filters=None):
     return {"tasks": root_tasks, "stats": stats, "error": None}
 
 
+def with_jsonl_lock(file_path, read_modify_write_func):
+    """Execute a read-modify-write operation with exclusive file lock.
+
+    Prevents race conditions when multiple requests modify tasks.jsonl.
+    """
+    with open(file_path, "r+", encoding="utf-8") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            result = read_modify_write_func(f)
+            f.flush()
+            return result
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+
 def update_task_priority(config, task_id, priority):
-    """Update task priority in tasks.jsonl"""
+    """Update task priority in tasks.jsonl with file locking"""
     tasks_path = config["tasks"]["path"]
 
     if not os.path.exists(tasks_path):
         return {"success": False, "error": "Tasks file not found"}
 
-    lines = []
-    found = False
-    updated_task = None
+    def modify(f):
+        lines = f.read().strip().split("\n")
+        f.seek(0)
+        f.truncate()
 
-    with open(tasks_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
+        found = False
+        for line in lines:
+            if line.strip():
                 try:
                     task = json.loads(line)
                     if task.get("task_id") == task_id:
                         task["priority"] = priority
                         found = True
-                        updated_task = task
-                    lines.append(json.dumps(task, ensure_ascii=False))
+                    f.write(json.dumps(task, ensure_ascii=False) + "\n")
                 except:
-                    lines.append(line)
+                    f.write(line + "\n")
+            else:
+                f.write("\n")
 
-    if not found:
+        return {"success": True, "found": found}
+
+    result = with_jsonl_lock(tasks_path, modify)
+    if not result["found"]:
         return {"success": False, "error": "Task not found"}
-
-    with open(tasks_path, "w", encoding="utf-8") as f:
-        for line in lines:
-            f.write(line + "\n")
-
     return {"success": True, "task": {"taskId": task_id, "priority": priority}}
 
 
 def update_task_status(config, task_id, status):
-    """Update task status in tasks.jsonl"""
+    """Update task status in tasks.jsonl with file locking"""
     tasks_path = config["tasks"]["path"]
 
     if not os.path.exists(tasks_path):
         return {"success": False, "error": "Tasks file not found"}
 
-    lines = []
-    found = False
+    def modify(f):
+        lines = f.read().strip().split("\n")
+        f.seek(0)
+        f.truncate()
 
-    with open(tasks_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
+        found = False
+        for line in lines:
+            if line.strip():
                 try:
                     task = json.loads(line)
                     if task.get("task_id") == task_id:
                         task["status"] = status
                         found = True
-                    lines.append(json.dumps(task, ensure_ascii=False))
+                    f.write(json.dumps(task, ensure_ascii=False) + "\n")
                 except:
-                    lines.append(line)
+                    f.write(line + "\n")
+            else:
+                f.write("\n")
 
-    if not found:
+        return {"success": True, "found": found}
+
+    result = with_jsonl_lock(tasks_path, modify)
+    if not result["found"]:
         return {"success": False, "error": "Task not found"}
-
-    with open(tasks_path, "w", encoding="utf-8") as f:
-        for line in lines:
-            f.write(line + "\n")
-
     return {"success": True, "task": {"taskId": task_id, "status": status}}
 
 
 def update_task_status_batch(config, task_ids, status):
-    """Update multiple tasks status in tasks.jsonl"""
+    """Update multiple tasks status in tasks.jsonl with file locking"""
     tasks_path = config["tasks"]["path"]
 
     if not os.path.exists(tasks_path):
         return {"success": False, "error": "Tasks file not found"}
 
-    lines = []
-    updated_count = 0
+    def modify(f):
+        lines = f.read().strip().split("\n")
+        f.seek(0)
+        f.truncate()
 
-    with open(tasks_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
+        updated_count = 0
+        for line in lines:
+            if line.strip():
                 try:
                     task = json.loads(line)
                     if task.get("task_id") in task_ids:
                         task["status"] = status
                         updated_count += 1
-                    lines.append(json.dumps(task, ensure_ascii=False))
+                    f.write(json.dumps(task, ensure_ascii=False) + "\n")
                 except:
-                    lines.append(line)
+                    f.write(line + "\n")
+            else:
+                f.write("\n")
 
-    with open(tasks_path, "w", encoding="utf-8") as f:
-        for line in lines:
-            f.write(line + "\n")
+        return {"success": True, "updated": updated_count}
 
-    return {"success": True, "updated": updated_count}
+    return with_jsonl_lock(tasks_path, modify)
 
 
 def delete_task(config, task_id):
-    """Delete task from tasks.jsonl"""
+    """Delete task from tasks.jsonl with file locking"""
     tasks_path = config["tasks"]["path"]
 
     if not os.path.exists(tasks_path):
         return {"success": False, "error": "Tasks file not found"}
 
-    lines_data = []
-    found = False
+    def modify(f):
+        lines = f.read().strip().split("\n")
+        f.seek(0)
+        f.truncate()
 
-    with open(tasks_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
+        found = False
+        for line in lines:
+            if line.strip():
                 try:
                     task = json.loads(line)
                     if task.get("task_id") == task_id:
                         found = True
                         continue  # Skip this line (delete it)
-                    lines_data.append(json.dumps(task, ensure_ascii=False))
+                    f.write(json.dumps(task, ensure_ascii=False) + "\n")
                 except:
-                    lines_data.append(line)
+                    f.write(line + "\n")
+            else:
+                f.write("\n")
 
-    if not found:
+        return {"success": True, "found": found}
+
+    result = with_jsonl_lock(tasks_path, modify)
+    if not result["found"]:
         return {"success": False, "error": "Task not found"}
-
-    with open(tasks_path, "w", encoding="utf-8") as f:
-        for line in lines_data:
-            f.write(line + "\n")
-
     return {"success": True, "deleted": True}
 
 
 def update_task_assignee(config, task_id, assignee):
-    """Update task assignee in tasks.jsonl"""
+    """Update task assignee in tasks.jsonl with file locking"""
     tasks_path = config["tasks"]["path"]
 
     if not os.path.exists(tasks_path):
         return {"success": False, "error": "Tasks file not found"}
 
-    lines = []
-    found = False
+    def modify(f):
+        lines = f.read().strip().split("\n")
+        f.seek(0)
+        f.truncate()
 
-    with open(tasks_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
+        found = False
+        for line in lines:
+            if line.strip():
                 try:
                     task = json.loads(line)
                     if task.get("task_id") == task_id:
                         task["assignee"] = assignee if assignee else ""
                         found = True
-                    lines.append(json.dumps(task, ensure_ascii=False))
+                    f.write(json.dumps(task, ensure_ascii=False) + "\n")
                 except:
-                    lines.append(line)
+                    f.write(line + "\n")
+            else:
+                f.write("\n")
 
-    if not found:
+        return {"success": True, "found": found}
+
+    result = with_jsonl_lock(tasks_path, modify)
+    if not result["found"]:
         return {"success": False, "error": "Task not found"}
-
-    with open(tasks_path, "w", encoding="utf-8") as f:
-        for line in lines:
-            f.write(line + "\n")
-
     return {"success": True, "task": {"taskId": task_id, "assignee": assignee}}
+
+
+def get_stats(config):
+    """Get statistics for dashboard (Phase 2)
+
+    Returns agent utilization, task throughput, and session activity.
+    """
+    now = int(time.time() * 1000)
+    one_day_ms = 24 * 60 * 60 * 1000
+    one_week_ms = 7 * one_day_ms
+
+    # Agent stats from get_agents
+    agents_data = get_agents(config)
+    agents = agents_data.get("agents", [])
+
+    agent_counts = {"online": 0, "busy": 0, "idle": 0, "offline": 0}
+    for a in agents:
+        status = a.get("status", "offline")
+        if status in agent_counts:
+            agent_counts[status] += 1
+
+    total_agents = len(agents)
+    active_agents = agent_counts["online"] + agent_counts["busy"]
+    utilization = round((active_agents / total_agents * 100), 1) if total_agents > 0 else 0
+
+    # Task stats from get_tasks
+    tasks_data = get_tasks(config)
+    tasks = []
+    tasks_path = config["tasks"]["path"]
+
+    if os.path.exists(tasks_path):
+        with open(tasks_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        tasks.append(json.loads(line))
+                    except:
+                        pass
+
+    task_counts = {
+        "total": len(tasks),
+        "completed": sum(1 for t in tasks if t.get("status") == "已完成"),
+        "pending": sum(1 for t in tasks if t.get("status") == "待处理"),
+        "inProgress": sum(1 for t in tasks if t.get("status") == "进行中"),
+        "blocked": sum(1 for t in tasks if t.get("status") == "挂起"),
+    }
+
+    completion_rate = round((task_counts["completed"] / task_counts["total"] * 100), 1) if task_counts["total"] > 0 else 0
+
+    # Count completed today (by checking notes for completion timestamp)
+    # For simplicity, we estimate based on recent activity
+    completed_today = 0
+    completed_week = 0
+
+    # Session stats
+    sessions_data = get_sessions(config)
+    sessions = sessions_data.get("sessions", [])
+
+    session_counts = {"total": len(sessions), "feishu": 0, "webchat": 0, "other": 0}
+    total_runtime = 0
+
+    for s in sessions:
+        channel = s.get("channel", "other")
+        if channel == "feishu":
+            session_counts["feishu"] += 1
+        elif channel == "webchat":
+            session_counts["webchat"] += 1
+        else:
+            session_counts["other"] += 1
+        total_runtime += s.get("runtimeMs", 0)
+
+    return {
+        "agents": {
+            "total": total_agents,
+            "online": agent_counts["online"],
+            "busy": agent_counts["busy"],
+            "idle": agent_counts["idle"],
+            "offline": agent_counts["offline"],
+            "utilizationPercent": utilization,
+        },
+        "tasks": {
+            "total": task_counts["total"],
+            "completed": task_counts["completed"],
+            "pending": task_counts["pending"],
+            "inProgress": task_counts["inProgress"],
+            "blocked": task_counts["blocked"],
+            "completionRate": completion_rate,
+        },
+        "sessions": {
+            "active24h": session_counts["total"],
+            "feishu": session_counts["feishu"],
+            "webchat": session_counts["webchat"],
+            "totalRuntimeMs": total_runtime,
+        },
+    }
 
 
 def get_assignees(config):
@@ -876,19 +1008,19 @@ def execute_task(config, task_id, agent_id, agent_type="openclaw"):
     """Execute task immediately by sending to agent (OpenClaw or OpenCode)"""
     tasks_path = config["tasks"]["path"]
     openclaw_path = "/home/aegis/.npm-global/bin/openclaw"
-    
+
     if not os.path.exists(tasks_path):
         return {"success": False, "error": "Tasks file not found"}
-    
-    # Find the task and update status to "进行中"
-    lines_data = []
-    found = False
-    task_data = None
-    
-    with open(tasks_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
+
+    def modify(f):
+        lines = f.read().strip().split("\n")
+        f.seek(0)
+        f.truncate()
+
+        found = False
+        task_data = None
+        for line in lines:
+            if line.strip():
                 try:
                     task = json.loads(line)
                     if task.get("task_id") == task_id:
@@ -896,24 +1028,27 @@ def execute_task(config, task_id, agent_id, agent_type="openclaw"):
                         task["notes"] = task.get("notes", "") + f"\n\n【执行记录】{datetime.now().isoformat()} - 任务已发送给 {agent_type}:{agent_id} 执行"
                         found = True
                         task_data = task
-                    lines_data.append(json.dumps(task, ensure_ascii=False))
+                    f.write(json.dumps(task, ensure_ascii=False) + "\n")
                 except:
-                    lines_data.append(line)
-    
-    if not found:
+                    f.write(line + "\n")
+            else:
+                f.write("\n")
+
+        return {"success": True, "found": found, "task_data": task_data}
+
+    result = with_jsonl_lock(tasks_path, modify)
+
+    if not result["found"]:
         return {"success": False, "error": "Task not found"}
-    
-    # Write updated tasks
-    with open(tasks_path, "w", encoding="utf-8") as f:
-        for line in lines_data:
-            f.write(line + "\n")
-    
+
+    task_data = result["task_data"]
+
     # Send task to agent (async - don't wait for completion)
     try:
         if agent_type == "openclaw":
             # Send message to OpenClaw agent using background process
             message = f"【立即执行】Task {task_id}: {task_data.get('title', 'Untitled')}\n\n请开始执行此任务。"
-            
+
             # Use Popen for async execution (don't block HTTP response)
             subprocess.Popen(
                 [
@@ -931,15 +1066,15 @@ def execute_task(config, task_id, agent_id, agent_type="openclaw"):
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,  # Detach from parent process
             )
-            
+
             return {
-                "success": True, 
+                "success": True,
                 "message": f"任务已发送给 {agent_id} 执行（异步执行中）",
                 "agentType": agent_type,
                 "agentId": agent_id,
                 "executionMode": "async"
             }
-        
+
         elif agent_type == "opencode":
             # For OpenCode, spawn session with task context
             return {
@@ -950,26 +1085,27 @@ def execute_task(config, task_id, agent_id, agent_type="openclaw"):
             }
         else:
             return {"success": False, "error": f"Unknown agent type: {agent_type}"}
-    
+
     except Exception as e:
-        # Rollback task status on error
-        rollback_lines = []
-        with open(tasks_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
+        # Rollback task status on error (also with locking)
+        def rollback(f):
+            lines = f.read().strip().split("\n")
+            f.seek(0)
+            f.truncate()
+            for line in lines:
+                if line.strip():
                     try:
                         task = json.loads(line)
                         if task.get("task_id") == task_id:
                             task["status"] = "待处理"
-                        rollback_lines.append(json.dumps(task, ensure_ascii=False))
+                        f.write(json.dumps(task, ensure_ascii=False) + "\n")
                     except:
-                        rollback_lines.append(line)
-        
-        with open(tasks_path, "w", encoding="utf-8") as f:
-            for line in rollback_lines:
-                f.write(line + "\n")
-        
+                        f.write(line + "\n")
+                else:
+                    f.write("\n")
+            return {"done": True}
+
+        with_jsonl_lock(tasks_path, rollback)
         return {"success": False, "error": str(e)}
 
 
@@ -1006,6 +1142,8 @@ class COADashHandler(BaseHTTPRequestHandler):
             self.send_json(get_sessions(self.config, agent_filter, type_filter))
         elif path == "/api/assignees":
             self.send_json(get_assignees(self.config))
+        elif path == "/api/stats":
+            self.send_json(get_stats(self.config))
         elif path == "/api/config":
             self.send_json(
                 {
@@ -1174,12 +1312,21 @@ class COADashHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(encoded)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+
+        # CORS: Check Origin against whitelist
+        origin = self.headers.get("Origin", "")
+        allowed_origins = self.config.get("allowedOrigins", [])
+        if origin and origin in allowed_origins:
+            self.send_header("Access-Control-Allow-Origin", origin)
+        elif not origin:
+            # No Origin header (direct browser request, curl, etc.)
+            pass  # Don't send CORS header
+
         self.end_headers()
         self.wfile.write(encoded)
 
     def proxy_opencode_request(self, path):
-        """Proxy requests to OpenCode serve (D80-D81)"""
+        """Proxy requests to OpenCode serve (D80-D81, D99)"""
         import urllib.request
         import urllib.error
 
@@ -1190,6 +1337,13 @@ class COADashHandler(BaseHTTPRequestHandler):
             action = parts[6] if len(parts) > 6 else ""
         except (IndexError, ValueError):
             self.send_json({"error": "Invalid path"}, 400)
+            return
+
+        # D99: Port whitelist - only allow ports from opencode-projects.json
+        projects = get_opencode_projects()
+        allowed_ports = [p.get("port") for p in projects.get("projects", []) if p.get("port")]
+        if port not in allowed_ports:
+            self.send_json({"error": "Port not allowed"}, 403)
             return
 
         allowed_actions = ["messages", "message", "command"]

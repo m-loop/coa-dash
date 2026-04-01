@@ -8,7 +8,6 @@
   },
   "gateway": {
     "port": 18789,
-    "token": "10045d1aa3d9cd254674814105ec9236eb781fce11969d61",
     "healthz": "http://localhost:18789/healthz",
     "readyz": "http://localhost:18789/readyz"
   },
@@ -32,5 +31,9 @@
       "heading": "Fira Sans",
       "body": "Fira Code"
     }
-  }
+  },
+  "allowedOrigins": [
+    "http://localhost:8890",
+    "http://100.103.186.109:8890"
+  ]
 }

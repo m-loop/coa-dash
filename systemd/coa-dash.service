@@ -8,6 +8,9 @@ WorkingDirectory=/home/aegis/vault/projects/coa-dash
 ExecStart=/usr/bin/python3 /home/aegis/vault/projects/coa-dash/src/server.py
 Restart=on-failure
 RestartSec=5
+# Security: Override sensitive values via environment variables
+# Environment=OPENCLAW_GATEWAY_TOKEN=your_token_here
+# Environment=COA_ALLOWED_ORIGINS=http://localhost:8890,http://example.com
 
 [Install]
 WantedBy=default.target
