@@ -308,9 +308,7 @@ class ClaudeSession:
             message = data.get("message", {})
             content = message.get("content", [])
 
-            # Set working status when assistant is processing
-            self.status = "working"
-
+            # Update activity but don't change status (terminal activity, not dashboard)
             for c in content:
                 if c.get("type") == "thinking":
                     self.current_activity = "Thinking..."
@@ -319,11 +317,8 @@ class ClaudeSession:
                     break
 
         elif msg_type == "result":
-            self.status = "idle"
-            if data.get("subtype") == "success":
-                self.current_activity = "Done"
-            else:
-                self.current_activity = data.get("result", "Error")[:50]
+            # Terminal finished - clear activity
+            self.current_activity = "Done"
 
 
 # Global session manager
