@@ -9,7 +9,10 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
+import uuid
+import queue
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime
@@ -93,6 +96,686 @@ class AgentConfigCache:
 
 
 agent_cache = AgentConfigCache()
+
+
+# ============================================================================
+# Claude Code Session Manager (v0.7.0)
+# ============================================================================
+
+CLAUDE_SESSIONS_METADATA_PATH = os.path.expanduser("~/.claude/coa-dash-sessions.json")
+MAX_CLAUDE_SESSIONS = 5
+ALLOWED_CWD_PREFIX = "/home/aegis/vault/projects/"
+CLAUDE_PATH = "/home/aegis/.npm-global/bin/claude"
+
+
+class ClaudeSession:
+    """Manages a Claude Code session using Claude's built-in session persistence"""
+
+    def __init__(self, session_id, name, cwd, model=None):
+        self.id = session_id
+        self.name = name
+        self.cwd = cwd
+        self.model = model  # Can be None to use default
+        self.claude_session_id = None  # Claude Code's internal session ID
+        self.status = "idle"
+        self.current_activity = ""
+        self.buffer_file = f"/tmp/claude-session-{session_id}.jsonl"
+        self.started_at = time.time()
+        self.messages = []
+        self.last_used_at = None  # Track for conflict detection
+        self._lock = threading.Lock()
+
+    def send_message(self, content):
+        """Send message to Claude Code (runs as one-shot process)"""
+        try:
+            cmd = [CLAUDE_PATH, "--print", "--output-format", "stream-json", "--verbose"]
+
+            # Add model if specified
+            if self.model:
+                cmd.extend(["--model", self.model])
+
+            # Resume existing conversation if we have a session ID
+            if self.claude_session_id:
+                cmd.extend(["--resume", self.claude_session_id])
+
+            self.status = "working"
+            self.current_activity = "Thinking..."
+            self.last_used_at = time.time()
+
+            # Broadcast status change
+            broadcast_session_update(self.id, "status", self.get_info())
+
+            # Run Claude Code process
+            proc = subprocess.Popen(
+                cmd,
+                cwd=self.cwd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            # Send the message
+            stdout, stderr = proc.communicate(input=content, timeout=120)
+
+            # Parse output and broadcast each message
+            with self._lock:
+                with open(self.buffer_file, "a") as buf:
+                    for line in stdout.strip().split("\n"):
+                        if line:
+                            buf.write(line + "\n")
+                            try:
+                                data = json.loads(line)
+                                self.messages.append(data)
+                                self._parse_status(data)
+                                # Broadcast each message for real-time updates
+                                broadcast_session_update(self.id, "message", data)
+                            except:
+                                pass
+
+            # Save metadata to persist claude_session_id for recovery
+            save_sessions_metadata()
+
+            self.status = "idle"
+            self.current_activity = "Done"
+
+            # Broadcast final status
+            broadcast_session_update(self.id, "status", self.get_info())
+            broadcast_session_update(self.id, "done", {"success": True})
+
+            return True
+
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            self.status = "error"
+            self.current_activity = "Timeout"
+            broadcast_session_update(self.id, "status", self.get_info())
+            broadcast_session_update(self.id, "error", {"error": "Timeout"})
+            return False
+        except Exception as e:
+            print(f"[ERROR] Failed to send message to session {self.id}: {e}")
+            self.status = "error"
+            self.current_activity = str(e)
+            broadcast_session_update(self.id, "status", self.get_info())
+            broadcast_session_update(self.id, "error", {"error": str(e)})
+            return False
+
+    def stop(self):
+        """Stop the session (no persistent process to kill)"""
+        self.status = "stopped"
+
+    def cleanup(self):
+        """Clean up buffer file"""
+        try:
+            if os.path.exists(self.buffer_file):
+                os.remove(self.buffer_file)
+        except:
+            pass
+
+    def get_info(self):
+        """Get session info for API response"""
+        project_name = os.path.basename(self.cwd) if self.cwd else "unknown"
+        return {
+            "id": self.id,
+            "name": self.name,
+            "cwd": self.cwd,
+            "projectName": project_name,
+            "model": self.model,
+            "status": self.status,
+            "activity": self.current_activity,
+            "startedAt": self.started_at,
+            "duration": int(time.time() - self.started_at),
+            "messageCount": len(self.messages),
+            "claudeSessionId": self.claude_session_id,
+            "lastUsedAt": self.last_used_at,
+            "title": f"{project_name}/{self.name}",
+        }
+
+    def _parse_status(self, data):
+        """Parse Claude Code output to extract session ID and status"""
+        msg_type = data.get("type")
+
+        if msg_type == "system":
+            # Capture Claude's internal session ID for resume
+            self.claude_session_id = data.get("session_id")
+            self.current_activity = "Ready"
+
+        elif msg_type == "assistant":
+            message = data.get("message", {})
+            content = message.get("content", [])
+
+            for c in content:
+                if c.get("type") == "thinking":
+                    self.current_activity = "Thinking..."
+                elif c.get("type") == "tool_use":
+                    self.current_activity = f"Tool: {c.get('name', 'unknown')}"
+                    break
+
+        elif msg_type == "result":
+            if data.get("subtype") == "success":
+                self.current_activity = "Done"
+            else:
+                self.current_activity = data.get("result", "Error")[:50]
+
+
+# Global session manager
+claude_sessions = {}  # session_id -> ClaudeSession
+claude_sessions_lock = threading.Lock()
+
+# SSE subscribers for real-time updates (v0.7.0)
+sse_subscribers = {}  # session_id -> list of (queue, thread) tuples
+sse_subscribers_lock = threading.Lock()
+
+# File watchers for imported sessions (v0.7.0)
+file_watchers = {}  # session_id -> FileWatcher thread
+file_watchers_lock = threading.Lock()
+
+
+def broadcast_session_update(session_id, event_type, data):
+    """Broadcast update to all SSE subscribers for a session"""
+    with sse_subscribers_lock:
+        subscribers = sse_subscribers.get(session_id, [])
+        for q in subscribers:
+            try:
+                q.put({"type": event_type, "data": data})
+            except:
+                pass  # Queue might be full or closed
+
+
+def add_sse_subscriber(session_id, q):
+    """Add SSE subscriber for a session, start file watcher if needed"""
+    with sse_subscribers_lock:
+        if session_id not in sse_subscribers:
+            sse_subscribers[session_id] = []
+        sse_subscribers[session_id].append(q)
+    subscriber_count = len(sse_subscribers.get(session_id, []))
+
+    # Start file watcher for imported sessions (linked to external Claude)
+    with claude_sessions_lock:
+        session = claude_sessions.get(session_id)
+        if session and session.claude_session_id and subscriber_count == 1:
+            # First subscriber - start watching the file
+            start_file_watcher(session)
+
+    return subscriber_count
+
+
+def remove_sse_subscriber(session_id, q):
+    """Remove SSE subscriber, stop file watcher if no more subscribers"""
+    with sse_subscribers_lock:
+        if session_id in sse_subscribers:
+            try:
+                sse_subscribers[session_id].remove(q)
+                if not sse_subscribers[session_id]:
+                    del sse_subscribers[session_id]
+                    # No more subscribers - stop file watcher
+                    stop_file_watcher(session_id)
+            except:
+                pass
+
+
+class FileWatcher(threading.Thread):
+    """Watch a Claude session file for new messages and broadcast via SSE"""
+
+    def __init__(self, session):
+        super().__init__(daemon=True)
+        self.session = session
+        self.session_id = session.id
+        self.claude_session_id = session.claude_session_id
+        self.cwd = session.cwd
+        self.running = True
+        self.file_position = 0
+        self.check_interval = 0.5  # Check every 500ms for responsiveness
+
+        # Compute Claude file path
+        encoded_path = self.cwd.replace("/", "-").replace("~", "-")
+        if encoded_path.startswith("-"):
+            encoded_path = "-" + encoded_path[1:]
+        self.claude_file = os.path.expanduser(
+            f"~/.claude/projects/{encoded_path}/{self.claude_session_id}.jsonl"
+        )
+
+    def run(self):
+        """Tail the file and broadcast new messages"""
+        # Initial position - start from end if file exists
+        if os.path.exists(self.claude_file):
+            self.file_position = os.path.getsize(self.claude_file)
+
+        while self.running:
+            try:
+                if os.path.exists(self.claude_file):
+                    current_size = os.path.getsize(self.claude_file)
+
+                    # File grew - read new content
+                    if current_size > self.file_position:
+                        with open(self.claude_file, "r") as f:
+                            f.seek(self.file_position)
+                            new_lines = f.readlines()
+                            self.file_position = f.tell()
+
+                        # Parse and broadcast each new message
+                        for line in new_lines:
+                            if line.strip():
+                                try:
+                                    data = json.loads(line.strip())
+                                    # Update session's in-memory messages
+                                    with self.session._lock:
+                                        self.session.messages.append(data)
+                                        self.session._parse_status(data)
+                                    # Broadcast via SSE
+                                    broadcast_session_update(
+                                        self.session_id, "message", data
+                                    )
+                                except json.JSONDecodeError:
+                                    pass
+
+                        # Update message count
+                        with self.session._lock:
+                            self.session.message_count = len(self.session.messages)
+                        broadcast_session_update(
+                            self.session_id, "status", self.session.get_info()
+                        )
+
+                    # File shrunk (truncated/recreated) - reset position
+                    elif current_size < self.file_position:
+                        self.file_position = 0
+
+            except Exception as e:
+                print(f"[FileWatcher] Error: {e}")
+
+            time.sleep(self.check_interval)
+
+    def stop(self):
+        """Stop the watcher"""
+        self.running = False
+
+
+def start_file_watcher(session):
+    """Start file watcher for an imported session"""
+    with file_watchers_lock:
+        if session.id not in file_watchers:
+            watcher = FileWatcher(session)
+            file_watchers[session.id] = watcher
+            watcher.start()
+            print(f"[FileWatcher] Started watching {session.claude_session_id}")
+
+
+def stop_file_watcher(session_id):
+    """Stop file watcher when no more subscribers"""
+    with file_watchers_lock:
+        if session_id in file_watchers:
+            watcher = file_watchers[session_id]
+            watcher.stop()
+            del file_watchers[session_id]
+            print(f"[FileWatcher] Stopped watching {session_id}")
+
+
+def save_sessions_metadata():
+    """Persist session metadata to disk"""
+    try:
+        data = {
+            "sessions": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "cwd": s.cwd,
+                    "model": s.model,
+                    "buffer_file": s.buffer_file,
+                    "started_at": s.started_at,
+                    "claude_session_id": s.claude_session_id,  # For resuming
+                    "message_count": len(s.messages),
+                }
+                for s in claude_sessions.values()
+            ]
+        }
+        with open(CLAUDE_SESSIONS_METADATA_PATH, "w") as f:
+            json.dump(data, f, indent=2)
+        print(f"[DEBUG] Saved metadata for {len(claude_sessions)} sessions")
+    except Exception as e:
+        print(f"[ERROR] Failed to save sessions metadata: {e}")
+
+
+def load_sessions_metadata():
+    """Load session metadata from disk (for recovery after restart)"""
+    if not os.path.exists(CLAUDE_SESSIONS_METADATA_PATH):
+        return
+
+    try:
+        with open(CLAUDE_SESSIONS_METADATA_PATH, "r") as f:
+            data = json.load(f)
+
+        for s in data.get("sessions", []):
+            session_id = s["id"]
+            claude_session_id = s.get("claude_session_id")
+            buffer_file = s.get("buffer_file", "")
+
+            # For imported sessions, read from the original Claude file
+            if claude_session_id:
+                encoded_path = s["cwd"].replace("/", "-").replace("~", "-")
+                if encoded_path.startswith("-"):
+                    encoded_path = "-" + encoded_path[1:]
+                claude_file = os.path.expanduser(
+                    f"~/.claude/projects/{encoded_path}/{claude_session_id}.jsonl"
+                )
+                if os.path.exists(claude_file):
+                    buffer_file = claude_file  # Use original file
+
+            # Restore session if we have a valid source
+            if buffer_file and os.path.exists(buffer_file):
+                session = ClaudeSession(session_id, s["name"], s["cwd"], s.get("model"))
+                session.buffer_file = s.get("buffer_file", f"/tmp/claude-session-{session_id}.jsonl")
+                session.started_at = s.get("started_at", time.time())
+                session.claude_session_id = claude_session_id
+
+                # Load messages from file
+                try:
+                    with open(buffer_file, "r") as bf:
+                        for line in bf:
+                            try:
+                                session.messages.append(json.loads(line.strip()))
+                            except:
+                                pass
+                except:
+                    pass
+
+                session.status = "idle"
+                session.current_activity = f"Recovered ({len(session.messages)} messages)"
+                session.message_count = len(session.messages)
+
+                with claude_sessions_lock:
+                    claude_sessions[session_id] = session
+
+                print(f"[INFO] Recovered session {session_id} with {len(session.messages)} messages")
+    except Exception as e:
+        print(f"[ERROR] Failed to load sessions metadata: {e}")
+
+
+def create_claude_session(name, cwd, model=None):
+    """Create a new Claude Code session"""
+    # Validate cwd
+    if not cwd.startswith(ALLOWED_CWD_PREFIX):
+        return {"error": "Invalid cwd - must be within /home/aegis/vault/projects/"}
+
+    if not os.path.isdir(cwd):
+        return {"error": "Directory does not exist"}
+
+    # Check session limit
+    with claude_sessions_lock:
+        if len(claude_sessions) >= MAX_CLAUDE_SESSIONS:
+            return {"error": f"Maximum {MAX_CLAUDE_SESSIONS} sessions allowed"}
+
+        session_id = uuid.uuid4().hex[:8]
+        session = ClaudeSession(session_id, name, cwd, model)
+        claude_sessions[session_id] = session
+        save_sessions_metadata()
+
+    return {"success": True, "session": session.get_info()}
+
+
+def get_claude_sessions():
+    """Get list of all sessions"""
+    with claude_sessions_lock:
+        return [s.get_info() for s in claude_sessions.values()]
+
+
+def get_claude_session(session_id):
+    """Get single session info"""
+    with claude_sessions_lock:
+        session = claude_sessions.get(session_id)
+        if session:
+            return session.get_info()
+        return None
+
+
+def get_claude_session_history(session_id, limit=100):
+    """Get session conversation history - reads from original Claude file for latest data"""
+    with claude_sessions_lock:
+        session = claude_sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+
+        history = []
+
+        # If linked to a Claude session, read from original file for latest messages
+        if session.claude_session_id:
+            encoded_path = session.cwd.replace("/", "-").replace("~", "-")
+            if encoded_path.startswith("-"):
+                encoded_path = "-" + encoded_path[1:]
+            claude_file = os.path.expanduser(
+                f"~/.claude/projects/{encoded_path}/{session.claude_session_id}.jsonl"
+            )
+            if os.path.exists(claude_file):
+                try:
+                    with open(claude_file, "r") as f:
+                        lines = f.readlines()
+                        for line in lines[-limit:]:
+                            try:
+                                history.append(json.loads(line.strip()))
+                            except:
+                                pass
+                    # Update our buffer and in-memory messages
+                    session.messages = [json.loads(l.strip()) for l in lines if l.strip()]
+                except Exception as e:
+                    print(f"[WARN] Failed to read Claude session file: {e}")
+
+        # Fallback to buffer file
+        if not history and os.path.exists(session.buffer_file):
+            try:
+                with open(session.buffer_file, "r") as f:
+                    lines = f.readlines()
+                    for line in lines[-limit:]:
+                        try:
+                            history.append(json.loads(line.strip()))
+                        except:
+                            pass
+            except:
+                pass
+
+        # Fallback to in-memory
+        if not history:
+            history = session.messages[-limit:]
+
+        return {"messages": history, "count": len(history), "total": len(session.messages)}
+
+
+def send_claude_message(session_id, content):
+    """Send message to session"""
+    with claude_sessions_lock:
+        session = claude_sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+
+        if session.status not in ["idle", "starting"]:
+            return {"error": f"Session busy (status: {session.status})"}
+
+    success = session.send_message(content)
+    if success:
+        return {"success": True, "message": "Message sent"}
+    return {"error": "Failed to send message"}
+
+
+def list_available_claude_sessions(cwd=None):
+    """List Claude Code sessions available on disk - scans all project directories"""
+    claude_projects_dir = os.path.expanduser("~/.claude/projects")
+
+    if not os.path.exists(claude_projects_dir):
+        return {"sessions": [], "error": "No Claude projects directory found"}
+
+    sessions = []
+
+    # Scan all project directories
+    try:
+        for project_dir_name in os.listdir(claude_projects_dir):
+            project_dir = os.path.join(claude_projects_dir, project_dir_name)
+            if not os.path.isdir(project_dir):
+                continue
+
+            # Decode project name from directory name
+            # Format: -home-aegis-vault-projects-coa-dash -> /home/aegis/vault/projects/coa-dash
+            project_name = project_dir_name
+            if project_dir_name.startswith("-"):
+                # Try to extract meaningful project name
+                parts = project_dir_name[1:].split("-")
+                if len(parts) >= 3:
+                    project_name = parts[-1]  # Last part is usually the project name
+                else:
+                    project_name = project_dir_name
+
+            # Scan session files in this project
+            for f in os.listdir(project_dir):
+                if not f.endswith(".jsonl"):
+                    continue
+
+                session_id = f[:-6]  # Remove .jsonl
+                filepath = os.path.join(project_dir, f)
+                stat = os.stat(filepath)
+                mtime = stat.st_mtime
+                size = stat.st_size
+
+                # Extract useful info from session file
+                slug = session_id[:8]
+                git_branch = None
+                message_count = 0
+                first_user_msg = None
+
+                try:
+                    with open(filepath, "r") as sf:
+                        for line in sf:
+                            try:
+                                data = json.loads(line.strip())
+                                if data.get("type") == "system" and data.get("slug"):
+                                    slug = data.get("slug", slug)
+                                    git_branch = data.get("gitBranch")
+                                if data.get("type") == "user" and not first_user_msg:
+                                    msg = data.get("message", {})
+                                    content = msg.get("content", "")
+                                    if isinstance(content, str) and content:
+                                        first_user_msg = content[:80]
+                                    elif isinstance(content, list) and content:
+                                        for c in content:
+                                            if isinstance(c, dict) and c.get("text"):
+                                                first_user_msg = c["text"][:80]
+                                                break
+                                message_count += 1
+                            except:
+                                pass
+                except:
+                    pass
+
+                # Check if this session is already in our active sessions
+                is_active_in_dashboard = any(
+                    s.claude_session_id == session_id
+                    for s in claude_sessions.values()
+                )
+
+                # Check if session is active in terminal
+                is_active_in_terminal = False
+                time_since_mtime = time.time() - mtime
+                if time_since_mtime < 30:
+                    is_active_in_terminal = True
+
+                try:
+                    result = subprocess.run(
+                        ["pgrep", "-f", f"claude.*--resume.*{session_id[:8]}"],
+                        capture_output=True,
+                        text=True,
+                        timeout=2
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        is_active_in_terminal = True
+                except:
+                    pass
+
+                sessions.append({
+                    "id": session_id,
+                    "shortId": session_id[:8],
+                    "slug": slug,
+                    "projectName": project_name,
+                    "projectDir": project_dir_name,
+                    "gitBranch": git_branch,
+                    "mtime": mtime,
+                    "mtimeAgo": format_time_ago(int(mtime * 1000)),
+                    "size": size,
+                    "messageCount": message_count,
+                    "firstMessage": first_user_msg,
+                    "isActive": is_active_in_dashboard or is_active_in_terminal,
+                    "isActiveInDashboard": is_active_in_dashboard,
+                    "isActiveInTerminal": is_active_in_terminal,
+                    "title": f"{project_name}/{slug}",
+                })
+    except Exception as e:
+        return {"sessions": [], "error": str(e)}
+
+        # Sort by mtime descending
+        sessions.sort(key=lambda s: s["mtime"], reverse=True)
+    except Exception as e:
+        return {"sessions": [], "error": str(e)}
+
+    return {"sessions": sessions, "count": len(sessions)}
+
+
+def import_claude_session(session_id, name, cwd):
+    """Import an existing Claude session from disk"""
+    # Encode the path
+    encoded_path = cwd.replace("/", "-").replace("~", "-")
+    if encoded_path.startswith("-"):
+        encoded_path = "-" + encoded_path[1:]
+
+    claude_session_file = os.path.expanduser(f"~/.claude/projects/{encoded_path}/{session_id}.jsonl")
+
+    if not os.path.exists(claude_session_file):
+        return {"error": "Claude session not found on disk"}
+
+    with claude_sessions_lock:
+        if len(claude_sessions) >= MAX_CLAUDE_SESSIONS:
+            return {"error": f"Maximum {MAX_CLAUDE_SESSIONS} sessions allowed"}
+
+        # Create a new dashboard session that links to this Claude session
+        dashboard_session_id = uuid.uuid4().hex[:8]
+        session = ClaudeSession(dashboard_session_id, name, cwd, None)
+        session.claude_session_id = session_id  # Link to existing Claude session
+        session.buffer_file = f"/tmp/claude-session-{dashboard_session_id}.jsonl"
+
+        # Copy messages from Claude's file to both memory and buffer
+        try:
+            with open(claude_session_file, "r") as src:
+                with open(session.buffer_file, "w") as dst:
+                    for line in src:
+                        try:
+                            msg = json.loads(line.strip())
+                            session.messages.append(msg)
+                            dst.write(line)
+                        except:
+                            pass
+        except Exception as e:
+            print(f"[WARN] Failed to copy session history: {e}")
+
+        session.status = "idle"
+        session.current_activity = f"Imported ({len(session.messages)} messages)"
+
+        claude_sessions[dashboard_session_id] = session
+        save_sessions_metadata()
+
+    return {"success": True, "session": session.get_info()}
+
+
+def delete_claude_session(session_id):
+    """Stop and delete session"""
+    with claude_sessions_lock:
+        session = claude_sessions.get(session_id)
+        if not session:
+            return {"error": "Session not found"}
+
+        session.stop()
+        session.cleanup()
+        del claude_sessions[session_id]
+        save_sessions_metadata()
+
+    return {"success": True, "deleted": session_id}
+
+
+# Load metadata on startup
+load_sessions_metadata()
 
 
 def get_agents(config, force_refresh=False):
@@ -1003,6 +1686,46 @@ def send_notification(config, task_id, agent_id, notification_type):
         return {"success": False, "error": str(e)}
 
 
+def notify_agent(config, agent_id, notification_type="PING"):
+    """Send a notification to an agent (v0.7.0)"""
+    messages = {
+        "PING": "📢 Ping from dashboard - checking connection",
+        "WAKE_UP": "🔔 Wake up - you have pending tasks",
+        "STATUS_CHECK": "📊 Please update your status",
+    }
+
+    message = messages.get(notification_type, f"Notification: {notification_type}")
+
+    try:
+        result = subprocess.run(
+            [
+                "openclaw",
+                "agent",
+                "--agent",
+                agent_id,
+                "--message",
+                message,
+                "--deliver",
+                "--reply-channel",
+                "feishu",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode == 0:
+            return {"success": True, "message": f"Notification sent to {agent_id}"}
+        else:
+            return {"success": False, "error": result.stderr or "Unknown error"}
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "Timeout"}
+    except FileNotFoundError:
+        return {"success": False, "error": "openclaw CLI not found"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 
 def execute_task(config, task_id, agent_id, agent_type="openclaw"):
     """Execute task immediately by sending to agent (OpenClaw or OpenCode)"""
@@ -1161,6 +1884,32 @@ class COADashHandler(BaseHTTPRequestHandler):
             self.send_json(get_opencode_projects())
         elif path == "/api/session-state":
             self.send_json(get_session_state(self.config))
+        # Claude Code Session API (v0.7.0)
+        elif path == "/api/claudecode/sessions":
+            self.send_json({"sessions": get_claude_sessions()})
+        elif re.match(r"/api/claudecode/sessions/([^/]+)$", path):
+            session_id = re.match(r"/api/claudecode/sessions/([^/]+)$", path).group(1)
+            session = get_claude_session(session_id)
+            if session:
+                self.send_json(session)
+            else:
+                self.send_json({"error": "Session not found"}, 404)
+        elif re.match(r"/api/claudecode/sessions/([^/]+)/history$", path):
+            session_id = re.match(r"/api/claudecode/sessions/([^/]+)/history$", path).group(1)
+            limit = int(query.get("limit", [100])[0])
+            result = get_claude_session_history(session_id, limit)
+            if "error" in result:
+                self.send_json(result, 404)
+            else:
+                self.send_json(result)
+        elif path == "/api/claudecode/available":
+            # List Claude sessions available on disk
+            cwd = query.get("cwd", ["/home/aegis/vault/projects/coa-dash"])[0]
+            self.send_json(list_available_claude_sessions(cwd))
+        elif re.match(r"/api/claudecode/sessions/([^/]+)/stream$", path):
+            # SSE endpoint for real-time updates (v0.7.0)
+            session_id = re.match(r"/api/claudecode/sessions/([^/]+)/stream$", path).group(1)
+            self.handle_sse_stream(session_id)
         elif path.startswith("/api/opencode/") and "/session/" in path:
             self.proxy_opencode_request(path)
         else:
@@ -1290,8 +2039,93 @@ class COADashHandler(BaseHTTPRequestHandler):
                 self.send_json(result)
             except Exception as e:
                 self.send_json({"success": False, "error": str(e)}, 400)
+        # Agent notification endpoint (v0.7.0)
+        elif re.match(r"/api/agents/([^/]+)/notify", path):
+            agent_match = re.match(r"/api/agents/([^/]+)/notify", path)
+            agent_id = agent_match.group(1)
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                notification_type = data.get("type", "PING")
+                result = notify_agent(self.config, agent_id, notification_type)
+                self.send_json(result)
+            except Exception as e:
+                self.send_json({"success": False, "error": str(e)}, 400)
         elif path.startswith("/api/opencode/") and "/session/" in path:
             self.proxy_opencode_request(path)
+        # Claude Code Session API (v0.7.0)
+        elif path == "/api/claudecode/sessions":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                name = data.get("name", "Untitled")
+                cwd = data.get("cwd", "/home/aegis/vault/projects/coa-dash")
+                model = data.get("model")
+                result = create_claude_session(name, cwd, model)
+                if "error" in result:
+                    self.send_json(result, 400)
+                else:
+                    self.send_json(result)
+            except Exception as e:
+                self.send_json({"error": str(e)}, 400)
+        elif re.match(r"/api/claudecode/sessions/([^/]+)/message$", path):
+            session_id = re.match(r"/api/claudecode/sessions/([^/]+)/message$", path).group(1)
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                content = data.get("content", "")
+                if not content:
+                    self.send_json({"error": "Content required"}, 400)
+                else:
+                    result = send_claude_message(session_id, content)
+                    if "error" in result:
+                        self.send_json(result, 400)
+                    else:
+                        self.send_json(result)
+            except Exception as e:
+                self.send_json({"error": str(e)}, 400)
+        elif path == "/api/claudecode/import":
+            # Import an existing Claude session from disk
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                claude_session_id = data.get("claudeSessionId")
+                name = data.get("name", "Imported")
+                project_dir = data.get("projectDir")  # Encoded dir like "-home-aegis-vault-projects-coa-dash"
+                cwd = data.get("cwd", "/home/aegis/vault/projects/coa-dash")
+
+                # Decode projectDir if provided
+                if project_dir:
+                    # Decode: -home-aegis-vault-projects-coa-dash → /home/aegis/vault/projects/coa-dash
+                    # The encoding is: / → -, . → -- (for hidden dirs)
+                    # Key insight: dashes in project names (like coa-dash) are preserved
+                    decoded = project_dir
+                    if decoded.startswith("-"):
+                        decoded = decoded[1:]  # Remove leading dash (root)
+                    # First handle hidden directories: -- → /.
+                    decoded = decoded.replace("--", "/.")
+                    # Find "projects" marker - everything after it is the project name (preserve dashes)
+                    if "-projects-" in decoded:
+                        prefix, project_name = decoded.split("-projects-", 1)
+                        cwd = "/" + prefix.replace("-", "/") + "/projects/" + project_name
+                    else:
+                        # No projects marker, just replace all dashes
+                        cwd = "/" + decoded.replace("-", "/")
+
+                if not claude_session_id:
+                    self.send_json({"error": "claudeSessionId required"}, 400)
+                else:
+                    result = import_claude_session(claude_session_id, name, cwd)
+                    if "error" in result:
+                        self.send_json(result, 400)
+                    else:
+                        self.send_json(result)
+            except Exception as e:
+                self.send_json({"error": str(e)}, 400)
         else:
             self.send_error(404)
 
@@ -1304,6 +2138,14 @@ class COADashHandler(BaseHTTPRequestHandler):
             task_id = delete_match.group(1)
             result = delete_task(self.config, task_id)
             self.send_json(result)
+        # Claude Code Session API (v0.7.0)
+        elif re.match(r"/api/claudecode/sessions/([^/]+)$", path):
+            session_id = re.match(r"/api/claudecode/sessions/([^/]+)$", path).group(1)
+            result = delete_claude_session(session_id)
+            if "error" in result:
+                self.send_json(result, 404)
+            else:
+                self.send_json(result)
         else:
             self.send_error(404)
 
@@ -1324,6 +2166,64 @@ class COADashHandler(BaseHTTPRequestHandler):
 
         self.end_headers()
         self.wfile.write(encoded)
+
+    def handle_sse_stream(self, session_id):
+        """Handle SSE streaming for real-time session updates (v0.7.0)"""
+        # Check session exists
+        with claude_sessions_lock:
+            session = claude_sessions.get(session_id)
+            if not session:
+                self.send_json({"error": "Session not found"}, 404)
+                return
+
+        # Set up SSE response
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")  # Disable nginx buffering
+
+        # CORS
+        origin = self.headers.get("Origin", "")
+        allowed_origins = self.config.get("allowedOrigins", [])
+        if origin and origin in allowed_origins:
+            self.send_header("Access-Control-Allow-Origin", origin)
+
+        self.end_headers()
+
+        # Create queue for this subscriber
+        subscriber_queue = queue.Queue(maxsize=100)
+        add_sse_subscriber(session_id, subscriber_queue)
+
+        try:
+            # Send initial status
+            self._send_sse_event("init", session.get_info())
+
+            # Keep connection alive and send updates
+            while True:
+                try:
+                    # Wait for update with timeout
+                    event = subscriber_queue.get(timeout=30)
+                    self._send_sse_event(event["type"], event["data"])
+                except queue.Empty:
+                    # Send keepalive comment
+                    self.wfile.write(b": keepalive\n\n")
+                    self.wfile.flush()
+
+        except (BrokenPipeError, ConnectionResetError):
+            # Client disconnected
+            pass
+        finally:
+            remove_sse_subscriber(session_id, subscriber_queue)
+
+    def _send_sse_event(self, event_type, data):
+        """Send a single SSE event"""
+        try:
+            event_str = f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+            self.wfile.write(event_str.encode("utf-8"))
+            self.wfile.flush()
+        except:
+            raise BrokenPipeError()
 
     def proxy_opencode_request(self, path):
         """Proxy requests to OpenCode serve (D80-D81, D99)"""

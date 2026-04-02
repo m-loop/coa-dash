@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>COA-dash v0.6.0</title>
+<title>COA-dash v0.7.0</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap');
+/* Fallback fonts in case Google Fonts is blocked */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap&font-display=swap');
 
 * {
   margin: 0;
@@ -127,6 +128,96 @@ h1, h2, h3, h4, h5, h6 {
 .refresh-btn:active { background: var(--secondary); }
 .refresh-btn.loading { animation: spin 1s linear infinite; }
 
+.notification-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  background: transparent;
+  border: none;
+  color: var(--text);
+  position: relative;
+}
+
+.notification-btn:active { background: var(--secondary); }
+
+.notification-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--red);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.notification-badge.hidden { display: none; }
+
+/* Notification History */
+.notification-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.notification-item:last-child { border-bottom: none; }
+
+.notification-item.unread {
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.notification-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.notification-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.notification-body {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.notification-time {
+  font-size: 10px;
+  color: var(--slate);
+  margin-top: 4px;
+}
+
+.notification-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -243,6 +334,80 @@ h1, h2, h3, h4, h5, h6 {
 .sidebar-agent-dot.offline { background: var(--slate); }
 .sidebar-agent-dot.dead { background: var(--red); }
 .sidebar-agent-dot.sick { background: var(--orange); }
+
+.sidebar-agent.clickable {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.sidebar-agent.clickable:active {
+  background: var(--secondary);
+}
+
+@media (min-width: 780px) {
+  .sidebar-agent.clickable:hover {
+    background: var(--secondary);
+  }
+}
+
+.sidebar-agent-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-agent-activity {
+  font-size: 10px;
+  color: var(--text-muted);
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Agent Control Modal */
+.agent-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.agent-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-info-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.agent-info-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.agent-info-value {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.agent-actions .btn {
+  flex: 1;
+  min-width: 100px;
+}
 
 .sidebar-stats {
   display: grid;
@@ -1612,6 +1777,1024 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--border);
 }
 
+/* Claude Code Session Styles (v0.7.0) - Enhanced UI */
+.claudecode-page {
+  padding: var(--card-padding);
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.claudecode-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.claudecode-header h2 {
+  font-size: var(--font-title);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+/* Project Cards - Simplified */
+.claude-project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.claude-project-card {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--primary) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  animation: slideUp 0.4s ease-out backwards;
+}
+
+.claude-project-card:nth-child(1) { animation-delay: 0.05s; }
+.claude-project-card:nth-child(2) { animation-delay: 0.1s; }
+.claude-project-card:nth-child(3) { animation-delay: 0.15s; }
+
+@media (min-width: 780px) {
+  .claude-project-card:hover {
+    border-color: var(--accent);
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, var(--primary) 100%);
+    transform: translateX(4px);
+  }
+}
+
+.claude-project-card:active {
+  transform: scale(0.98);
+  background: var(--secondary);
+}
+
+.claude-project-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-right: 12px;
+  background: var(--secondary);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.claude-project-info {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.claude-project-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.claude-session-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: var(--indigo);
+  color: white;
+}
+
+.claude-project-activity {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.claude-project-meta {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.claude-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Enhanced Session Cards */
+.claude-session-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--primary) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  min-height: 68px;
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-normal);
+  animation: slideUp 0.4s ease-out backwards;
+}
+
+.claude-session-item:nth-child(1) { animation-delay: 0.05s; }
+.claude-session-item:nth-child(2) { animation-delay: 0.1s; }
+.claude-session-item:nth-child(3) { animation-delay: 0.15s; }
+.claude-session-item:nth-child(4) { animation-delay: 0.2s; }
+.claude-session-item:nth-child(5) { animation-delay: 0.25s; }
+
+/* Unfolded hover state */
+@media (min-width: 780px) {
+  .claude-session-item:hover {
+    border-color: var(--accent);
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, var(--primary) 100%);
+    transform: translateX(4px);
+  }
+}
+
+.claude-session-item:active {
+  transform: scale(0.98);
+  background: var(--secondary);
+}
+
+/* Status indicator with animated dot */
+.claude-session-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-right: 12px;
+  background: var(--secondary);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.claude-status-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.claude-status-dot.working {
+  background: var(--yellow);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.claude-status-dot.working::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--yellow);
+  opacity: 0.3;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.claude-status-dot.idle { background: var(--indigo); }
+.claude-status-dot.done { background: var(--green); }
+.claude-status-dot.error { background: var(--red); }
+
+.claude-session-info {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.claude-session-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.claude-session-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 4px;
+  background: var(--secondary);
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.claude-session-badge.recovered {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--indigo);
+}
+
+.claude-session-badge.imported {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--green);
+}
+
+.claude-session-activity {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.claude-session-msg-count {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.claude-session-meta {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.claude-session-time {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+}
+
+.claude-session-model {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--secondary);
+  color: var(--slate);
+}
+
+/* Conversation View */
+.claude-conversation {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: var(--top-bar-height);
+  left: 0;
+  right: 0;
+  bottom: var(--bottom-nav-height);
+  background: var(--bg);
+  z-index: 10;
+  animation: scaleIn 0.3s ease-out;
+}
+
+@media (min-width: 780px) {
+  .claude-conversation {
+    left: var(--sidebar-left-width);
+    right: var(--sidebar-right-width);
+  }
+}
+
+.claude-conversation-header {
+  display: flex;
+  align-items: center;
+  gap: var(--card-margin);
+  padding: 12px 16px;
+  background: linear-gradient(180deg, var(--primary) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.claude-conversation-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claude-conversation-status {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.claude-sync-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(99, 102, 241, 0.1);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+  font-size: 12px;
+  color: var(--indigo);
+}
+
+.sync-icon {
+  font-size: 14px;
+}
+
+.claude-conversation-status.working {
+  background: rgba(250, 204, 21, 0.15);
+  color: var(--yellow);
+}
+
+.claude-conversation-status.working::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--yellow);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.claude-conversation-status.idle {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--indigo);
+}
+
+.claude-conversation-status.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--red);
+}
+
+.claude-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  font-size: 16px;
+  line-height: 1.65;
+  scroll-behavior: smooth;
+}
+
+/* Enhanced Message Styles */
+.claude-message {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--primary);
+  animation: slideUp 0.25s ease-out backwards;
+  position: relative;
+}
+
+.claude-message:nth-child(1) { animation-delay: 0.02s; }
+.claude-message:nth-child(2) { animation-delay: 0.04s; }
+.claude-message:nth-child(3) { animation-delay: 0.06s; }
+
+.claude-message.assistant {
+  background: linear-gradient(135deg, var(--secondary) 0%, rgba(30, 41, 59, 0.6) 100%);
+  border-left: 3px solid var(--accent);
+}
+
+.claude-message.user {
+  background: linear-gradient(135deg, var(--primary) 0%, rgba(15, 23, 42, 0.9) 100%);
+  border-left: 3px solid var(--indigo);
+}
+
+.message-role {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.message-role::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.claude-message.assistant .message-role::before {
+  background: var(--accent);
+}
+
+.claude-message.user .message-role::before {
+  background: var(--indigo);
+}
+
+.message-content {
+  color: var(--text);
+}
+
+.message-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-text.tool-result {
+  color: var(--slate);
+  font-size: 13px;
+  font-style: italic;
+  background: rgba(100, 116, 139, 0.1);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+/* Thinking Section */
+.message-thinking {
+  padding: 10px 14px;
+  background: rgba(250, 204, 21, 0.08);
+  border-radius: 8px;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-style: italic;
+  border-left: 2px solid var(--yellow);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-thinking::before {
+  content: '💭';
+  font-size: 16px;
+}
+
+/* Tool Calls */
+.message-tool {
+  padding: 10px 14px;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 8px;
+  margin-top: 8px;
+  border-left: 2px solid var(--indigo);
+}
+
+.tool-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tool-icon {
+  font-size: 14px;
+}
+
+.tool-name {
+  font-weight: 600;
+  color: var(--indigo);
+  font-size: 13px;
+}
+
+.tool-input {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+/* Code Blocks */
+.message-code {
+  margin-top: 8px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.code-lang {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.code-content {
+  font-family: 'Fira Code', monospace;
+  font-size: 13px;
+  color: var(--text);
+  white-space: pre;
+  line-height: 1.5;
+}
+
+/* Result Messages */
+.message-result {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: var(--font-small);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.message-result.success {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--green);
+  border-left: 2px solid var(--green);
+}
+
+.message-result.success::before {
+  content: '✓';
+  font-weight: 700;
+}
+
+.message-result.error {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--red);
+  border-left: 2px solid var(--red);
+}
+
+.message-result.error::before {
+  content: '✗';
+  font-weight: 700;
+}
+
+.message-system {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  padding: 8px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+}
+
+/* Input Area */
+.claude-input-area {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, var(--primary) 100%);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.claude-input-area input {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 14px;
+  font-size: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  transition: border-color var(--transition-fast);
+}
+
+.claude-input-area input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.claude-input-area input::placeholder {
+  color: var(--slate);
+}
+
+/* Quick Commands */
+.claude-quick-commands {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.claude-quick-commands::-webkit-scrollbar {
+  display: none;
+}
+
+.claude-cmd-btn {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.claude-cmd-btn:active {
+  background: var(--border);
+  transform: scale(0.95);
+}
+
+@media (min-width: 780px) {
+  .claude-cmd-btn:hover {
+    background: var(--border);
+    border-color: var(--accent);
+  }
+}
+
+/* Loading State */
+.claude-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--text-muted);
+}
+
+.claude-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Empty State */
+.claude-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.claude-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.claude-empty-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.claude-empty-hint {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+}
+
+/* Modal Styles - Enhanced */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(2, 6, 23, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background: linear-gradient(180deg, var(--primary) 0%, rgba(15, 23, 42, 0.98) 100%);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  width: 92%;
+  max-width: 420px;
+  max-height: 85vh;
+  overflow: hidden;
+  animation: scaleIn 0.25s ease-out;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.modal-close {
+  background: var(--secondary);
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  min-width: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background var(--transition-fast);
+}
+
+@media (min-width: 780px) {
+  .modal-close:hover {
+    background: var(--border);
+    color: var(--text);
+  }
+}
+
+.modal-close:active {
+  background: var(--border);
+}
+
+.modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  max-height: calc(85vh - 120px);
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.modal-footer .btn {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  display: block;
+  font-size: var(--font-small);
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  transition: border-color var(--transition-fast);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.modal-hint {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-large {
+  max-width: 480px;
+}
+
+/* Available Sessions List - Enhanced Cards */
+.available-sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.available-session-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--bg);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  animation: slideUp 0.3s ease-out backwards;
+}
+
+.available-session-item:nth-child(1) { animation-delay: 0.05s; }
+.available-session-item:nth-child(2) { animation-delay: 0.1s; }
+.available-session-item:nth-child(3) { animation-delay: 0.15s; }
+.available-session-item:nth-child(4) { animation-delay: 0.2s; }
+
+@media (min-width: 780px) {
+  .available-session-item:hover {
+    border-color: var(--accent);
+    background: rgba(34, 197, 94, 0.05);
+  }
+}
+
+.available-session-item:active {
+  transform: scale(0.98);
+}
+
+/* Active session warnings */
+.available-session-item.session-active-terminal {
+  border-color: var(--yellow);
+  background: rgba(250, 204, 21, 0.06);
+}
+
+.available-session-item.session-active-dashboard {
+  border-color: var(--indigo);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.available-session-item.session-active-both {
+  border-color: var(--red);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.available-session-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.available-session-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.session-project {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.session-slug {
+  color: var(--slate);
+  font-size: var(--font-small);
+}
+
+.active-warning {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  margin-left: 6px;
+}
+
+.active-warning.terminal {
+  background: rgba(250, 204, 21, 0.2);
+  color: var(--yellow);
+}
+
+.active-warning.dashboard {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--indigo);
+}
+
+.active-warning.both {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--red);
+}
+
+.branch-info {
+  background: rgba(100, 116, 139, 0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--slate);
+  margin-left: 6px;
+}
+
+.session-preview {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-top: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.available-session-meta {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.meta-msgs {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.btn-small {
+  padding: 8px 14px;
+  font-size: var(--font-small);
+  min-height: 36px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--red);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:active {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.claudecode-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.empty-hint {
+  font-size: var(--font-small);
+  color: var(--text-muted);
+  padding: 24px;
+  text-align: center;
+}
+
 </style>
 </head>
 <body>
@@ -1624,6 +2807,13 @@ h1, h2, h3, h4, h5, h6 {
     </button>
     <span class="status-dot" id="gatewayDot"></span>
     <span id="gatewayText">Gateway</span>
+    <button class="notification-btn" id="notificationBtn" onclick="showNotificationHistory()" aria-label="Notifications">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <span class="notification-badge hidden" id="notificationBadge">0</span>
+    </button>
     <button class="refresh-btn" id="refreshBtn" aria-label="刷新">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
@@ -1683,11 +2873,11 @@ h1, h2, h3, h4, h5, h6 {
      </svg>
      <span>OpenCode</span>
    </button>
-   <button class="nav-item" data-tab="stats">
-     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-       <path d="M18 20V10M12 20V4M6 20v-6"/>
+   <button class="nav-item" data-tab="claudecode">
+     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.1c-.26-1.05-1.17-1.83-2.24-1.83H15v-2c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.43z"/>
      </svg>
-     <span>Stats</span>
+     <span>Claude</span>
    </button>
  </div>
 
@@ -1702,6 +2892,147 @@ let showCompletedTasks = false;  // D63: 默认隐藏已完成任务
 let sessionTypeFilter = 'all';   // D64: Sessions 筛选器
 let taskStats = { total: 0, completed: 0, pending: 0, inProgress: 0, blocked: 0 };
 let agentsData = [];
+
+// Smart Notifications State (v0.7.0)
+let notificationsEnabled = false;
+let notificationHistory = [];
+let notificationPermission = 'default';
+
+// Initialize notifications
+function initNotifications() {
+  if ('Notification' in window) {
+    notificationPermission = Notification.permission;
+    if (notificationPermission === 'granted') {
+      notificationsEnabled = true;
+    } else if (notificationPermission === 'default') {
+      // Will request on first important event
+    }
+  }
+}
+
+async function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    const permission = await Notification.requestPermission();
+    notificationPermission = permission;
+    notificationsEnabled = (permission === 'granted');
+    if (notificationsEnabled) {
+      showToast('Notifications enabled', 'success');
+    }
+    return permission;
+  }
+  return notificationPermission;
+}
+
+function showSmartNotification(title, options = {}) {
+  // Add to history
+  const notification = {
+    id: Date.now(),
+    title: title,
+    body: options.body || '',
+    icon: options.icon || '🦞',
+    timestamp: new Date().toISOString(),
+    read: false
+  };
+  notificationHistory.unshift(notification);
+  if (notificationHistory.length > 50) notificationHistory.pop();
+
+  // Update badge
+  updateNotificationBadge();
+
+  // Show toast in UI
+  showToast(notification.icon + ' ' + title, options.type || '');
+
+  // Show browser notification if enabled
+  if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        body: options.body || '',
+        icon: options.icon || '🦞',
+        tag: options.tag || 'coa-dash',
+        requireInteraction: options.important || false
+      });
+    } catch (e) {
+      console.log('Notification failed:', e);
+    }
+  }
+}
+
+function getUnreadNotificationCount() {
+  return notificationHistory.filter(n => !n.read).length;
+}
+
+function markNotificationsRead() {
+  notificationHistory.forEach(n => n.read = true);
+  updateNotificationBadge();
+}
+
+function updateNotificationBadge() {
+  const badge = $('notificationBadge');
+  const count = getUnreadNotificationCount();
+  if (count > 0) {
+    badge.textContent = count > 9 ? '9+' : count;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function showNotificationHistory() {
+  markNotificationsRead();
+
+  let content = '';
+  if (notificationHistory.length === 0) {
+    content = '<div class="notification-empty">No notifications yet</div>';
+  } else {
+    content = '<div class="notification-list">';
+    notificationHistory.slice(0, 20).forEach(n => {
+      const timeAgo = formatTimeAgo(new Date(n.timestamp));
+      content += '<div class="notification-item' + (n.read ? '' : ' unread') + '">';
+      content += '<span class="notification-icon">' + n.icon + '</span>';
+      content += '<div class="notification-content">';
+      content += '<div class="notification-title">' + escapeHtml(n.title) + '</div>';
+      if (n.body) content += '<div class="notification-body">' + escapeHtml(n.body) + '</div>';
+      content += '<div class="notification-time">' + timeAgo + '</div>';
+      content += '</div>';
+      content += '</div>';
+    });
+    content += '</div>';
+  }
+
+  let html = '<div class="modal-overlay" onclick="closeNotificationModal()">';
+  html += '<div class="modal-content" onclick="event.stopPropagation()">';
+  html += '<div class="modal-header">';
+  html += '<h3>🔔 Notifications</h3>';
+  html += '<button class="modal-close" onclick="closeNotificationModal()">×</button>';
+  html += '</div>';
+  html += '<div class="modal-body">' + content + '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  const existing = document.getElementById('notificationModal');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.id = 'notificationModal';
+  div.innerHTML = html;
+  document.body.appendChild(div);
+}
+
+function closeNotificationModal() {
+  const modal = document.getElementById('notificationModal');
+  if (modal) modal.remove();
+}
+
+function formatTimeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return minutes + 'm ago';
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + 'h ago';
+  const days = Math.floor(hours / 24);
+  return days + 'd ago';
+}
 let tasksData = [];
 let sessionsData = [];  // D64: Sessions 数据
 
@@ -1720,9 +3051,9 @@ function showToast(message, type = '') {
   }, 2000);
 }
 
-async function fetchAPI(endpoint) {
+async function fetchAPI(endpoint, options = {}) {
   try {
-    const res = await fetch(endpoint);
+    const res = await fetch(endpoint, options);
     return await res.json();
   } catch (e) {
     console.error('API error:', e);
@@ -1790,11 +3121,98 @@ function updateSidebarAgents() {
   const container = $('sidebarAgents');
   container.innerHTML = agentsData.map(a => {
     const statusClass = a.status || 'offline';
-    return '<div class="sidebar-agent">' +
+    return '<div class="sidebar-agent clickable" onclick="showAgentControlModal(\'' + a.id + '\')">' +
       '<div class="sidebar-agent-dot ' + statusClass + '"></div>' +
-      '<span>' + a.id + '</span>' +
+      '<span class="sidebar-agent-name">' + a.id + '</span>' +
+      '<span class="sidebar-agent-activity">' + (a.currentActivity || '').substring(0, 15) + '</span>' +
     '</div>';
   }).join('');
+}
+
+function showAgentControlModal(agentId) {
+  const agent = agentsData.find(a => a.id === agentId);
+  if (!agent) return;
+
+  const statusClass = agent.status || 'offline';
+  const statusIcon = agent.status === 'online' ? '🟢' :
+                     agent.status === 'busy' ? '🟡' :
+                     agent.status === 'idle' ? '🔵' : '⚪';
+
+  let html = '<div class="modal-overlay" onclick="closeAgentModal()">';
+  html += '<div class="modal-content" onclick="event.stopPropagation()">';
+  html += '<div class="modal-header">';
+  html += '<h3>' + statusIcon + ' ' + escapeHtml(agent.displayName || agent.id) + '</h3>';
+  html += '<button class="modal-close" onclick="closeAgentModal()">×</button>';
+  html += '</div>';
+  html += '<div class="modal-body">';
+
+  // Status info
+  html += '<div class="agent-info-grid">';
+  html += '<div class="agent-info-item"><span class="agent-info-label">Status</span><span class="status-badge status-' + statusClass + '">' + agent.status + '</span></div>';
+  html += '<div class="agent-info-item"><span class="agent-info-label">Model</span><span class="agent-info-value">' + (agent.model || 'unknown') + '</span></div>';
+  html += '<div class="agent-info-item"><span class="agent-info-label">Last Active</span><span class="agent-info-value">' + (agent.lastActivityAgo || 'never') + '</span></div>';
+  html += '<div class="agent-info-item"><span class="agent-info-label">Sessions</span><span class="agent-info-value">' + (agent.sessionCount || 0) + '</span></div>';
+  if (agent.currentActivity) {
+    html += '<div class="agent-info-item full-width"><span class="agent-info-label">Current Activity</span><span class="agent-info-value">' + escapeHtml(agent.currentActivity) + '</span></div>';
+  }
+  html += '</div>';
+
+  // Quick actions
+  html += '<div class="agent-actions">';
+  html += '<button class="btn btn-primary" onclick="notifyAgent(\'' + agentId + '\')">🔔 Notify</button>';
+  html += '<button class="btn btn-secondary" onclick="viewAgentSessions(\'' + agentId + '\')">💬 Sessions</button>';
+  html += '<button class="btn btn-secondary" onclick="assignTaskToAgent(\'' + agentId + '\')">📋 Assign Task</button>';
+  html += '</div>';
+
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  const existing = document.getElementById('agentModal');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.id = 'agentModal';
+  div.innerHTML = html;
+  document.body.appendChild(div);
+}
+
+function closeAgentModal() {
+  const modal = document.getElementById('agentModal');
+  if (modal) modal.remove();
+}
+
+async function notifyAgent(agentId) {
+  closeAgentModal();
+  try {
+    const res = await fetch('/api/agents/' + agentId + '/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'PING' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Notification sent to ' + agentId, 'success');
+    } else {
+      showToast('Failed to notify: ' + (data.error || 'unknown'), 'error');
+    }
+  } catch (e) {
+    showToast('Failed to notify agent', 'error');
+  }
+}
+
+function viewAgentSessions(agentId) {
+  closeAgentModal();
+  // Switch to agents tab and filter by this agent
+  switchTab('agents');
+  // The sessions are already shown on the agents tab
+}
+
+function assignTaskToAgent(agentId) {
+  closeAgentModal();
+  // Switch to tasks tab to assign
+  switchTab('tasks');
+  showToast('Select a task and assign to ' + agentId);
 }
 
 function updateSidebarStats() {
@@ -1840,7 +3258,11 @@ async function switchTab(tab) {
     await loadOpenCodeProjects();
     await loadOpenCodeSessions();
   }
-  
+
+  if (tab === 'claudecode') {
+    await loadClaudeCodeSessions();
+  }
+
   renderContent();
 }
 
@@ -1852,7 +3274,7 @@ function renderContent() {
     case 'agents': renderAgents(container); break;
     case 'tasks': renderTasks(container); break;
     case 'opencode': renderOpenCode(container); break;
-    case 'stats': renderStats(container); break;
+    case 'claudecode': renderClaudeCode(container); break;
   }
 }
 
@@ -1922,40 +3344,662 @@ function renderSessionCard(s) {
   '</div>';
 }
 
-// Stats page (D75)
-function renderStats(container) {
-  const counts = { online: 0, busy: 0, idle: 0, offline: 0 };
-  agentsData.forEach(a => {
-    const s = a.status || 'offline';
-    if (counts[s] !== undefined) counts[s]++;
+// Claude Code Sessions page (v0.7.0)
+let claudeSessions = [];
+let currentClaudeSession = null;
+let claudeSessionMessages = [];
+let claudeLoading = false;
+let claudeEventSource = null;  // SSE connection
+
+async function loadClaudeCodeSessions() {
+  claudeLoading = true;
+  const data = await fetchAPI('/api/claudecode/sessions');
+  claudeSessions = data?.sessions || [];
+  claudeLoading = false;
+}
+
+function connectClaudeSSE(sessionId) {
+  // Disconnect existing connection
+  disconnectClaudeSSE();
+
+  // Create new SSE connection
+  claudeEventSource = new EventSource('/api/claudecode/sessions/' + sessionId + '/stream');
+
+  claudeEventSource.addEventListener('init', function(e) {
+    const data = JSON.parse(e.data);
+    currentClaudeSession = data;
+    renderContent();
   });
-  
-  container.innerHTML = 
-    '<div class="config-section">' +
-      '<div class="config-title">Task Statistics</div>' +
-      '<div class="sidebar-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--card-margin);">' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.total || 0) + '</div><div class="sidebar-stat-label">Total</div></div>' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.completed || 0) + '</div><div class="sidebar-stat-label">Completed</div></div>' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.pending || 0) + '</div><div class="sidebar-stat-label">Pending</div></div>' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.inProgress || 0) + '</div><div class="sidebar-stat-label">In Progress</div></div>' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (taskStats.blocked || 0) + '</div><div class="sidebar-stat-label">Blocked</div></div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="config-section">' +
-      '<div class="config-title">Agent Status</div>' +
-      '<div class="sidebar-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--card-margin);">' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.online + '</div><div class="sidebar-stat-label">Online</div></div>' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.busy + '</div><div class="sidebar-stat-label">Busy</div></div>' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.idle + '</div><div class="sidebar-stat-label">Idle</div></div>' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + counts.offline + '</div><div class="sidebar-stat-label">Offline</div></div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="config-section">' +
-      '<div class="config-title">Sessions</div>' +
-      '<div class="sidebar-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--card-margin);">' +
-        '<div class="sidebar-stat"><div class="sidebar-stat-value">' + (sessionsData.length || 0) + '</div><div class="sidebar-stat-label">Active (24h)</div></div>' +
+
+  claudeEventSource.addEventListener('status', function(e) {
+    const data = JSON.parse(e.data);
+    if (currentClaudeSession) {
+      currentClaudeSession.status = data.status;
+      currentClaudeSession.activity = data.activity;
+      currentClaudeSession.current_activity = data.current_activity;
+      renderContent();
+    }
+  });
+
+  claudeEventSource.addEventListener('message', function(e) {
+    const msg = JSON.parse(e.data);
+    claudeSessionMessages.push(msg);
+    renderContent();
+
+    // Scroll to bottom
+    const messagesEl = document.getElementById('claudeMessages');
+    if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+  });
+
+  claudeEventSource.addEventListener('done', function(e) {
+    // Request notification permission on first completion if not set
+    if (notificationPermission === 'default') {
+      requestNotificationPermission();
+    }
+    showSmartNotification('Claude Response Complete', {
+      body: currentClaudeSession ? currentClaudeSession.name : 'Session',
+      icon: '✅',
+      type: 'success'
+    });
+  });
+
+  claudeEventSource.addEventListener('error', function(e) {
+    const data = e.data ? JSON.parse(e.data) : {};
+    showSmartNotification('Claude Error', {
+      body: data.error || 'Unknown error',
+      icon: '❌',
+      type: 'error',
+      important: true
+    });
+  });
+
+  claudeEventSource.onerror = function() {
+    // Connection closed or error
+    console.log('SSE connection closed');
+  };
+}
+
+function disconnectClaudeSSE() {
+  if (claudeEventSource) {
+    claudeEventSource.close();
+    claudeEventSource = null;
+  }
+}
+
+function renderClaudeCode(container) {
+  if (currentClaudeSession) {
+    renderClaudeConversation(container);
+    return;
+  }
+
+  // Loading state
+  if (claudeLoading) {
+    container.innerHTML = '<div class="claude-loading"><div class="claude-loading-spinner"></div><span>Loading sessions...</span></div>';
+    return;
+  }
+
+  // Session list header
+  let html = '<div class="claudecode-page">';
+
+  // Header with create and import buttons
+  html += '<div class="claudecode-header">';
+  html += '<h2>Claude Code</h2>';
+  html += '<div class="claudecode-header-actions">';
+  html += '<button class="btn btn-secondary" onclick="showImportClaudeSessionModal()">Import</button>';
+  html += '<button class="btn btn-primary" onclick="showNewClaudeSessionModal()">+ New</button>';
+  html += '</div>';
+  html += '</div>';
+
+  // Session list
+  if (claudeSessions.length === 0) {
+    html += '<div class="claude-empty">';
+    html += '<div class="claude-empty-icon">🤖</div>';
+    html += '<div class="claude-empty-title">No Claude Code sessions</div>';
+    html += '<div class="claude-empty-hint">Create or import a session to start</div>';
+    html += '</div>';
+  } else {
+    // Group sessions by project, show most recent
+    const projects = {};
+    claudeSessions.forEach(s => {
+      const proj = s.projectName || 'unknown';
+      if (!projects[proj]) {
+        projects[proj] = [];
+      }
+      projects[proj].push(s);
+    });
+
+    // Sort each project's sessions by startedAt (newest first)
+    Object.keys(projects).forEach(proj => {
+      projects[proj].sort((a, b) => b.startedAt - a.startedAt);
+    });
+
+    html += '<div class="claude-project-list">';
+
+    Object.keys(projects).sort().forEach(projectName => {
+      const sessions = projects[projectName];
+      const latest = sessions[0]; // Most recent session
+      const sessionCount = sessions.length;
+
+      const statusClass = latest.status === 'working' ? 'working' :
+                          latest.status === 'idle' ? 'idle' :
+                          latest.status === 'error' ? 'error' : 'done';
+      const duration = formatClaudeDuration(latest.duration);
+      let badgeHtml = '';
+      if (latest.activity && latest.activity.includes('Recovered')) {
+        badgeHtml += '<span class="claude-session-badge recovered">📥</span>';
+      }
+      if (latest.activity && latest.activity.includes('Imported')) {
+        badgeHtml += '<span class="claude-session-badge imported">📂</span>';
+      }
+      const model = latest.model || 'sonnet';
+
+      html += '<div class="claude-project-card" onclick="selectClaudeSession(\'' + latest.id + '\')">';
+      html += '<div class="claude-project-status">';
+      html += '<div class="claude-status-dot ' + statusClass + '"></div>';
+      html += '</div>';
+      html += '<div class="claude-project-info">';
+      html += '<div class="claude-project-name">';
+      html += escapeHtml(projectName);
+      // Show session count if more than 1
+      if (sessionCount > 1) {
+        html += '<span class="claude-session-count">' + sessionCount + '</span>';
+      }
+      html += badgeHtml;
+      html += '</div>';
+      html += '<div class="claude-project-activity">';
+      if (latest.messageCount > 0) {
+        html += '<span class="claude-session-msg-count">' + latest.messageCount + ' msgs</span>';
+        html += '<span>·</span>';
+      }
+      html += '<span>' + escapeHtml(latest.activity || latest.status) + '</span>';
+      html += '</div>';
+      html += '</div>';
+      html += '<div class="claude-project-meta">';
+      html += '<span class="claude-session-time">' + duration + '</span>';
+      html += '<span class="claude-session-model">' + model + '</span>';
+      html += '</div>';
+      html += '</div>';
+    });
+
+    html += '</div>';
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// No longer needed - removed toggle function
+
+function renderClaudeConversation(container) {
+  const s = currentClaudeSession;
+  const statusClass = s.status || 'idle';
+
+  let html = '<div class="claude-conversation">';
+
+  // Header
+  html += '<div class="claude-conversation-header">';
+  html += '<button class="btn btn-secondary" onclick="closeClaudeConversation()">← Back</button>';
+  html += '<span class="claude-conversation-title">' + escapeHtml(s.name) + '</span>';
+  html += '<span class="claude-conversation-status ' + statusClass + '">' + s.status + '</span>';
+  html += '<button class="btn btn-danger btn-small" onclick="deleteClaudeSession(\'' + s.id + '\')">Delete</button>';
+  html += '</div>';
+
+  // Linked session warning
+  if (s.claudeSessionId) {
+    html += '<div class="claude-sync-warning">';
+    html += '<span class="sync-icon">🔗</span>';
+    html += '<span>Linked to external session - messages sync automatically. Avoid simultaneous input.</span>';
+    html += '</div>';
+  }
+
+  // Messages
+  html += '<div class="claude-messages" id="claudeMessages">';
+  if (claudeSessionMessages.length === 0) {
+    html += '<div class="claude-empty">';
+    html += '<div class="claude-empty-icon">💬</div>';
+    html += '<div class="claude-empty-title">Start a conversation</div>';
+    html += '<div class="claude-empty-hint">Type a message below to begin</div>';
+    html += '</div>';
+  } else {
+    claudeSessionMessages.forEach(msg => {
+      html += renderClaudeMessage(msg);
+    });
+  }
+  html += '</div>';
+
+  // Quick command buttons
+  html += '<div class="claude-quick-commands">';
+  html += '<button class="claude-cmd-btn" onclick="sendQuickCommand(\'Continue what you were doing\')">▶ Continue</button>';
+  html += '<button class="claude-cmd-btn" onclick="sendQuickCommand(\'Explain what you just did\')">💡 Explain</button>';
+  html += '<button class="claude-cmd-btn" onclick="sendQuickCommand(\'Fix any issues\')">🔧 Fix</button>';
+  html += '</div>';
+
+  // Input area
+  html += '<div class="claude-input-area">';
+  html += '<input type="text" id="claudeInput" placeholder="Type a message..." onkeypress="handleClaudeInputKey(event)">';
+  html += '<button class="btn btn-primary" onclick="sendClaudeMessage()">Send</button>';
+  html += '</div>';
+
+  html += '</div>';
+  container.innerHTML = html;
+
+  // Scroll to bottom
+  const messagesEl = document.getElementById('claudeMessages');
+  if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function renderClaudeMessage(msg) {
+  const type = msg.type || 'unknown';
+  let html = '<div class="claude-message ' + type + '">';
+
+  if (type === 'system') {
+    const modelInfo = msg.model || 'unknown model';
+    const cwdInfo = msg.cwd || '';
+    html += '<div class="message-system">';
+    html += '<span>⚡ System initialized</span>';
+    html += '<span style="margin-left:8px;color:var(--accent)">' + modelInfo + '</span>';
+    if (cwdInfo) html += '<span style="margin-left:8px;color:var(--slate)">' + cwdInfo + '</span>';
+    html += '</div>';
+  } else if (type === 'user') {
+    html += '<div class="message-role">You</div>';
+    html += '<div class="message-content">';
+    // Claude format: msg.message.content can be string OR array (tool_result)
+    let userContent = '';
+    let isToolResult = false;
+    if (msg.message && msg.message.content) {
+      const c = msg.message.content;
+      if (typeof c === 'string') {
+        userContent = c;
+      } else if (Array.isArray(c)) {
+        // Tool result - show summary
+        const toolResults = c.filter(item => item.type === 'tool_result');
+        if (toolResults.length > 0) {
+          userContent = 'Tool returned: ' + toolResults.length + ' result(s)';
+          isToolResult = true;
+        } else {
+          userContent = JSON.stringify(c).substring(0, 100);
+        }
+      }
+    } else if (typeof msg.content === 'string') {
+      userContent = msg.content;
+    }
+    if (isToolResult) {
+      html += '<div class="message-text tool-result">' + escapeHtml(userContent) + '</div>';
+    } else {
+      html += '<div class="message-text">' + escapeHtml(userContent) + '</div>';
+    }
+    html += '</div>';
+  } else if (type === 'assistant') {
+    const message = msg.message || {};
+    const content = message.content || [];
+
+    html += '<div class="message-role">Claude</div>';
+    html += '<div class="message-content">';
+
+    content.forEach(c => {
+      if (c.type === 'text') {
+        // Check for code blocks in text
+        const text = c.text || '';
+        const codeBlocks = parseCodeBlocks(text);
+        if (codeBlocks.length > 0) {
+          codeBlocks.forEach(block => {
+            if (block.type === 'code') {
+              html += '<div class="message-code">';
+              html += '<div class="code-header"><span class="code-lang">' + block.lang + '</span></div>';
+              html += '<pre class="code-content">' + escapeHtml(block.content) + '</pre>';
+              html += '</div>';
+            } else {
+              html += '<div class="message-text">' + escapeHtml(block.content) + '</div>';
+            }
+          });
+        } else {
+          html += '<div class="message-text">' + escapeHtml(text) + '</div>';
+        }
+      } else if (c.type === 'thinking') {
+        const thinkingText = c.thinking || 'Thinking...';
+        html += '<div class="message-thinking">' + escapeHtml(thinkingText.substring(0, 200)) + (thinkingText.length > 200 ? '...' : '') + '</div>';
+      } else if (c.type === 'tool_use') {
+        html += '<div class="message-tool">';
+        html += '<div class="tool-header">';
+        html += '<span class="tool-icon">🔧</span>';
+        html += '<span class="tool-name">' + escapeHtml(c.name || 'tool') + '</span>';
+        html += '</div>';
+        if (c.input) {
+          const inputStr = JSON.stringify(c.input, null, 2);
+          html += '<div class="tool-input">' + escapeHtml(inputStr.substring(0, 300)) + (inputStr.length > 300 ? '...' : '') + '</div>';
+        }
+        html += '</div>';
+      }
+    });
+
+    html += '</div>';
+  } else if (type === 'result') {
+    const isError = msg.subtype === 'error';
+    const cost = msg.total_cost_usd || 0;
+    const duration = msg.duration_ms || 0;
+    html += '<div class="message-result ' + (isError ? 'error' : 'success') + '">';
+    if (isError) {
+      html += '<span>Error</span>';
+      if (msg.error) html += '<span style="margin-left:8px">' + escapeHtml(String(msg.error).substring(0, 100)) + '</span>';
+    } else {
+      html += '<span>Completed</span>';
+      if (cost > 0) html += '<span style="margin-left:8px;color:var(--green)">$' + cost.toFixed(2) + '</span>';
+      if (duration > 0) html += '<span style="margin-left:8px">' + Math.round(duration/1000) + 's</span>';
+    }
+    html += '</div>';
+  } else {
+    // Skip internal types like queue-operation, summary, attachment, last-prompt
+    if (type === 'queue-operation' || type === 'summary' || type === 'attachment' || type === 'last-prompt') {
+      return '';
+    }
+    html += '<div class="message-system">' + escapeHtml(JSON.stringify(msg).substring(0, 200)) + '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// Parse code blocks from text
+function parseCodeBlocks(text) {
+  const blocks = [];
+  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    // Add text before code block
+    if (match.index > lastIndex) {
+      blocks.push({ type: 'text', content: text.substring(lastIndex, match.index).trim() });
+    }
+    // Add code block
+    blocks.push({ type: 'code', lang: match[1] || 'code', content: match[2].trim() });
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    const remaining = text.substring(lastIndex).trim();
+    if (remaining) blocks.push({ type: 'text', content: remaining });
+  }
+
+  return blocks.length > 0 ? blocks : [{ type: 'text', content: text }];
+}
+
+async function selectClaudeSession(sessionId) {
+  currentClaudeSession = claudeSessions.find(s => s.id === sessionId);
+  if (!currentClaudeSession) return;
+
+  // Load last 50 messages (reads from live Claude file for imported sessions)
+  await refreshClaudeSessionMessages();
+
+  // Connect to SSE for real-time updates (backend handles file watching for imported sessions)
+  connectClaudeSSE(sessionId);
+
+  renderContent();
+}
+
+async function refreshClaudeSessionMessages() {
+  if (!currentClaudeSession) return;
+  const data = await fetchAPI('/api/claudecode/sessions/' + currentClaudeSession.id + '/history?limit=50');
+  claudeSessionMessages = data?.messages || [];
+}
+
+function closeClaudeConversation() {
+  // Disconnect SSE (backend will stop file watcher when no subscribers)
+  disconnectClaudeSSE();
+
+  currentClaudeSession = null;
+  claudeSessionMessages = [];
+  renderContent();
+}
+
+async function sendClaudeMessage() {
+  if (!currentClaudeSession) return;
+
+  const input = document.getElementById('claudeInput');
+  const content = input.value.trim();
+  if (!content) return;
+
+  input.value = '';
+
+  // Add user message to UI immediately
+  claudeSessionMessages.push({ type: 'user', content: content });
+  renderContent();
+
+  // Send to API
+  const result = await fetchAPI('/api/claudecode/sessions/' + currentClaudeSession.id + '/message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content })
+  });
+
+  if (result?.error) {
+    showToast('Failed to send: ' + result.error, 'error');
+  }
+}
+
+function handleClaudeInputKey(event) {
+  if (event.key === 'Enter') {
+    sendClaudeMessage();
+  }
+}
+
+async function sendQuickCommand(text) {
+  if (!currentClaudeSession) return;
+
+  // Set input value and send
+  const input = document.getElementById('claudeInput');
+  if (input) {
+    input.value = text;
+  }
+  await sendClaudeMessage();
+}
+
+async function deleteClaudeSession(sessionId) {
+  if (!confirm('Delete this session?')) return;
+
+  const result = await fetchAPI('/api/claudecode/sessions/' + sessionId, { method: 'DELETE' });
+
+  if (result?.success) {
+    currentClaudeSession = null;
+    claudeSessionMessages = [];
+    await loadClaudeCodeSessions();
+    renderContent();
+    showToast('Session deleted');
+  } else {
+    showToast('Failed to delete: ' + (result?.error || 'unknown error'), 'error');
+  }
+}
+
+function showNewClaudeSessionModal() {
+  const modalHtml =
+    '<div class="modal-overlay" onclick="closeClaudeModal()">' +
+      '<div class="modal-content" onclick="event.stopPropagation()">' +
+        '<div class="modal-header">' +
+          '<h3>New Claude Session</h3>' +
+          '<button class="modal-close" onclick="closeClaudeModal()">×</button>' +
+        '</div>' +
+        '<div class="modal-body">' +
+          '<div class="form-group">' +
+            '<label>Session Name</label>' +
+            '<input type="text" id="claudeSessionName" placeholder="e.g., my-project" value="coa-dash">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Working Directory</label>' +
+            '<input type="text" id="claudeSessionCwd" placeholder="/home/user/projects/" value="/home/aegis/vault/projects/coa-dash">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Model (optional)</label>' +
+            '<select id="claudeSessionModel">' +
+              '<option value="">Default (sonnet)</option>' +
+              '<option value="sonnet">Sonnet</option>' +
+              '<option value="opus">Opus</option>' +
+              '<option value="haiku">Haiku</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        '<div class="modal-footer">' +
+          '<button class="btn btn-secondary" onclick="closeClaudeModal()">Cancel</button>' +
+          '<button class="btn btn-primary" onclick="createClaudeSession()">Create</button>' +
+        '</div>' +
       '</div>' +
     '</div>';
+
+  const existing = document.getElementById('claudeModal');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.id = 'claudeModal';
+  div.innerHTML = modalHtml;
+  document.body.appendChild(div);
+}
+
+function closeClaudeModal() {
+  const modal = document.getElementById('claudeModal');
+  if (modal) modal.remove();
+}
+
+async function createClaudeSession() {
+  const name = document.getElementById('claudeSessionName')?.value?.trim() || 'Untitled';
+  const cwd = document.getElementById('claudeSessionCwd')?.value?.trim() || '/home/aegis/vault/projects/coa-dash';
+  const model = document.getElementById('claudeSessionModel')?.value || null;
+
+  closeClaudeModal();
+
+  const result = await fetchAPI('/api/claudecode/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, cwd, model })
+  });
+
+  if (result?.success) {
+    showToast('Session created');
+    await loadClaudeCodeSessions();
+    renderContent();
+  } else {
+    showToast('Failed to create: ' + (result?.error || 'unknown error'), 'error');
+  }
+}
+
+async function showImportClaudeSessionModal() {
+  // Fetch available sessions (backend scans all project directories)
+  const data = await fetchAPI('/api/claudecode/available');
+  const availableSessions = data?.sessions || [];
+
+  let sessionsHtml = '';
+  if (availableSessions.length === 0) {
+    sessionsHtml = '<div class="claude-empty"><div class="claude-empty-icon">🔍</div><div class="claude-empty-title">No sessions found</div><div class="claude-empty-hint">No existing Claude Code sessions to import</div></div>';
+  } else {
+    // Group by project, show only most recent per project
+    const projects = {};
+    availableSessions.forEach(s => {
+      const proj = s.projectName || 'unknown';
+      if (!projects[proj] || s.mtime > projects[proj].mtime) {
+        projects[proj] = s;
+      }
+    });
+
+    sessionsHtml = '<div class="available-sessions-list">';
+    Object.keys(projects).sort().forEach(projectName => {
+      const s = projects[projectName];
+      const sizeKB = Math.round(s.size / 1024);
+
+      // Active warning
+      let activeWarning = '';
+      let itemClass = '';
+      if (s.isActiveInDashboard && s.isActiveInTerminal) {
+        activeWarning = '<span class="active-warning both">⚠️ Active</span>';
+        itemClass = ' session-active-both';
+      } else if (s.isActiveInTerminal) {
+        activeWarning = '<span class="active-warning terminal">💻 In terminal</span>';
+        itemClass = ' session-active-terminal';
+      } else if (s.isActiveInDashboard) {
+        activeWarning = '<span class="active-warning dashboard">📱 In dashboard</span>';
+        itemClass = ' session-active-dashboard';
+      }
+
+      const branchInfo = s.gitBranch ? '<span class="branch-info">' + escapeHtml(s.gitBranch) + '</span>' : '';
+
+      sessionsHtml += '<div class="available-session-item' + itemClass + '">';
+      sessionsHtml += '<div class="available-session-info">';
+      sessionsHtml += '<div class="available-session-title">';
+      sessionsHtml += '<span class="session-project">' + escapeHtml(projectName) + '</span>';
+      sessionsHtml += branchInfo;
+      sessionsHtml += activeWarning;
+      sessionsHtml += '</div>';
+      sessionsHtml += '<div class="available-session-meta">';
+      sessionsHtml += '<span class="meta-item meta-msgs">' + s.messageCount + ' msgs</span>';
+      sessionsHtml += '<span class="meta-item">' + s.mtimeAgo + '</span>';
+      sessionsHtml += '</div>';
+      if (s.firstMessage) {
+        sessionsHtml += '<div class="session-preview">' + escapeHtml(s.firstMessage.substring(0, 50)) + '...</div>';
+      }
+      sessionsHtml += '</div>';
+      sessionsHtml += '<button class="btn btn-small btn-primary" onclick="event.stopPropagation();importClaudeSession(\'' + s.id + '\', \'' + (s.slug || projectName) + '\', \'' + s.projectDir + '\')">Import</button>';
+      sessionsHtml += '</div>';
+    });
+    sessionsHtml += '</div>';
+  }
+
+  const modalHtml =
+    '<div class="modal-overlay" onclick="closeClaudeModal()">' +
+      '<div class="modal-content modal-large" onclick="event.stopPropagation()">' +
+        '<div class="modal-header">' +
+          '<h3>Import Claude Session</h3>' +
+          '<button class="modal-close" onclick="closeClaudeModal()">×</button>' +
+        '</div>' +
+        '<div class="modal-body">' +
+          '<p class="modal-hint">Select a Claude Code session to import. Sessions marked with ⚠️ may be active elsewhere.</p>' +
+          sessionsHtml +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  const existing = document.getElementById('claudeModal');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.id = 'claudeModal';
+  div.innerHTML = modalHtml;
+  document.body.appendChild(div);
+}
+
+async function importClaudeSession(claudeSessionId, shortId, projectDir) {
+  const name = 'imported-' + shortId;
+  // Send projectDir to backend for proper decoding
+  closeClaudeModal();
+
+  const result = await fetchAPI('/api/claudecode/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ claudeSessionId, name, projectDir })
+  });
+
+  if (result?.success) {
+    showToast('Session imported');
+    await loadClaudeCodeSessions();
+    renderContent();
+  } else {
+    showToast('Failed to import: ' + (result?.error || 'unknown error'), 'error');
+  }
+}
+
+function formatClaudeDuration(seconds) {
+  if (!seconds) return '0s';
+  if (seconds < 60) return seconds + 's';
+  const mins = Math.floor(seconds / 60);
+  if (mins < 60) return mins + 'm';
+  const hours = Math.floor(mins / 60);
+  return hours + 'h ' + (mins % 60) + 'm';
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // Tasks page
@@ -3034,6 +5078,7 @@ document.querySelectorAll('.nav-item').forEach(nav => {
 $('refreshBtn').onclick = () => refreshData(true);
 
 // Initialize
+initNotifications();
 refreshData();
 setInterval(refreshData, 60000);
 
