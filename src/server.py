@@ -125,10 +125,74 @@ class ClaudeSession:
         self.last_used_at = None  # Track for conflict detection
         self._lock = threading.Lock()
 
+    def send_message_async(self, content):
+        """Send message in background thread, returns immediately"""
+        def run():
+            try:
+                cmd = [CLAUDE_PATH, "--print", "--verbose", "--output-format", "stream-json"]
+
+                if self.model:
+                    cmd.extend(["--model", self.model])
+
+                if self.claude_session_id:
+                    cmd.extend(["--resume", self.claude_session_id])
+
+                self.status = "working"
+                self.current_activity = "Thinking..."
+                broadcast_session_update(self.id, "status", self.get_info())
+
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=self.cwd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+
+                stdout, stderr = proc.communicate(input=content, timeout=120)
+
+                with self._lock:
+                    with open(self.buffer_file, "a") as buf:
+                        for line in stdout.strip().split("\n"):
+                            if line:
+                                buf.write(line + "\n")
+                                try:
+                                    data = json.loads(line)
+                                    self.messages.append(data)
+                                    self._parse_status(data)
+                                    broadcast_session_update(self.id, "message", data)
+                                except:
+                                    pass
+
+                save_sessions_metadata()
+                self.status = "idle"
+                self.current_activity = "Done"
+                broadcast_session_update(self.id, "status", self.get_info())
+                broadcast_session_update(self.id, "done", {"success": True})
+
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                self.status = "error"
+                self.current_activity = "Timeout"
+                broadcast_session_update(self.id, "status", self.get_info())
+                broadcast_session_update(self.id, "error", {"error": "Timeout"})
+            except Exception as e:
+                print(f"[ERROR] send_message_async: {e}")
+                self.status = "error"
+                self.current_activity = str(e)
+                broadcast_session_update(self.id, "status", self.get_info())
+                broadcast_session_update(self.id, "error", {"error": str(e)})
+
+        # Start background thread
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        return True
+
     def send_message(self, content):
         """Send message to Claude Code (runs as one-shot process)"""
         try:
-            cmd = [CLAUDE_PATH, "--print", "--output-format", "stream-json", "--verbose"]
+            cmd = [CLAUDE_PATH, "--print", "--verbose", "--output-format", "stream-json"]
 
             # Add model if specified
             if self.model:
@@ -244,6 +308,9 @@ class ClaudeSession:
             message = data.get("message", {})
             content = message.get("content", [])
 
+            # Set working status when assistant is processing
+            self.status = "working"
+
             for c in content:
                 if c.get("type") == "thinking":
                     self.current_activity = "Thinking..."
@@ -252,6 +319,7 @@ class ClaudeSession:
                     break
 
         elif msg_type == "result":
+            self.status = "idle"
             if data.get("subtype") == "success":
                 self.current_activity = "Done"
             else:
@@ -375,6 +443,14 @@ class FileWatcher(threading.Thread):
                         broadcast_session_update(
                             self.session_id, "status", self.session.get_info()
                         )
+
+                        # Check for retained messages when file changes (terminal might be idle now)
+                        retained = get_retained_messages(self.session_id)
+                        if retained and not is_terminal_busy(self.session):
+                            broadcast_session_update(
+                                self.session_id, "retained_available",
+                                {"count": len(retained), "messages": retained}
+                            )
 
                     # File shrunk (truncated/recreated) - reset position
                     elif current_size < self.file_position:
@@ -527,7 +603,7 @@ def get_claude_session(session_id):
         return None
 
 
-def get_claude_session_history(session_id, limit=100):
+def get_claude_session_history(session_id, limit=50):
     """Get session conversation history - reads from original Claude file for latest data"""
     with claude_sessions_lock:
         session = claude_sessions.get(session_id)
@@ -546,15 +622,15 @@ def get_claude_session_history(session_id, limit=100):
             )
             if os.path.exists(claude_file):
                 try:
+                    # Simple: read all lines, take last N
                     with open(claude_file, "r") as f:
-                        lines = f.readlines()
-                        for line in lines[-limit:]:
+                        all_lines = f.readlines()
+                    for line in all_lines[-limit:]:
+                        if line.strip():
                             try:
                                 history.append(json.loads(line.strip()))
                             except:
                                 pass
-                    # Update our buffer and in-memory messages
-                    session.messages = [json.loads(l.strip()) for l in lines if l.strip()]
                 except Exception as e:
                     print(f"[WARN] Failed to read Claude session file: {e}")
 
@@ -562,12 +638,13 @@ def get_claude_session_history(session_id, limit=100):
         if not history and os.path.exists(session.buffer_file):
             try:
                 with open(session.buffer_file, "r") as f:
-                    lines = f.readlines()
-                    for line in lines[-limit:]:
-                        try:
-                            history.append(json.loads(line.strip()))
-                        except:
-                            pass
+                    lines = f.readlines()[-limit:]
+                    for line in lines:
+                        if line.strip():
+                            try:
+                                history.append(json.loads(line.strip()))
+                            except:
+                                pass
             except:
                 pass
 
@@ -577,18 +654,105 @@ def get_claude_session_history(session_id, limit=100):
 
         return {"messages": history, "count": len(history), "total": len(session.messages)}
 
+# Global retained messages for terminal busy handling
+retained_messages = {}  # session_id -> list of retained messages
+retained_messages_lock = threading.Lock()
+
+def get_claude_file_path(cwd, claude_session_id):
+    """Get the Claude session file path from cwd and session ID"""
+    encoded_path = cwd.replace("/", "-").replace("~", "-")
+    if encoded_path.startswith("-"):
+        encoded_path = "-" + encoded_path[1:]
+    return os.path.expanduser(
+        f"~/.claude/projects/{encoded_path}/{claude_session_id}.jsonl"
+    )
+
+def is_terminal_busy(session):
+    """Check if terminal session is actively processing by file mtime"""
+    if not session.claude_session_id:
+        return False
+
+    claude_file = get_claude_file_path(session.cwd, session.claude_session_id)
+    if os.path.exists(claude_file):
+        mtime = os.path.getmtime(claude_file)
+        # If file modified within last 5 seconds, terminal is busy
+        return time.time() - mtime < 5
+    return False
+
+def write_notification_file(session_id, content):
+    """Write dashboard input to notification file for terminal display"""
+    pending_file = f"/tmp/claude-pending-{session_id}.jsonl"
+    entry = {
+        "session_id": session_id,
+        "content": content,
+        "sent_at": time.time(),
+        "status": "retained"
+    }
+    with open(pending_file, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+def retain_message(session_id, content):
+    """Store message for later, write notification file"""
+    with retained_messages_lock:
+        if session_id not in retained_messages:
+            retained_messages[session_id] = []
+        retained_messages[session_id].append({
+            "content": content,
+            "retained_at": time.time(),
+            "session_id": session_id
+        })
+
+    write_notification_file(session_id, content)
+
+    return {
+        "retained": True,
+        "message": "Terminal busy - message retained. Retry when idle.",
+        "notification_file": f"/tmp/claude-pending-{session_id}.jsonl"
+    }
+
+def get_retained_messages(session_id):
+    """Get retained messages for a session"""
+    with retained_messages_lock:
+        return retained_messages.get(session_id, [])
+
+def clear_retained_message(session_id, index=0):
+    """Remove a retained message after manual retry"""
+    with retained_messages_lock:
+        if session_id in retained_messages and retained_messages[session_id]:
+            if index < len(retained_messages[session_id]):
+                retained_messages[session_id].pop(index)
+                return {"success": True, "remaining": len(retained_messages[session_id])}
+    return {"error": "Message not found"}
+
+def check_terminal_idle_and_alert(session_id):
+    """Check if terminal is now idle, broadcast retained alert if so"""
+    session = claude_sessions.get(session_id)
+    if session and session.claude_session_id:
+        if not is_terminal_busy(session):
+            retained = get_retained_messages(session_id)
+            if retained:
+                broadcast_session_update(session_id, "retained_available", {
+                    "count": len(retained),
+                    "messages": retained
+                })
+
 
 def send_claude_message(session_id, content):
-    """Send message to session"""
+    """Send message to session, retain if terminal busy"""
     with claude_sessions_lock:
         session = claude_sessions.get(session_id)
         if not session:
             return {"error": "Session not found"}
 
         if session.status not in ["idle", "starting"]:
-            return {"error": f"Session busy (status: {session.status})"}
+            return {"error": f"Dashboard busy (status: {session.status})"}
 
-    success = session.send_message(content)
+        # Check if terminal session is busy (actively processing)
+        if is_terminal_busy(session):
+            return retain_message(session_id, content)
+
+    # Use async version - returns immediately
+    success = session.send_message_async(content)
     if success:
         return {"success": True, "message": "Message sent"}
     return {"error": "Failed to send message"}
@@ -1910,6 +2074,11 @@ class COADashHandler(BaseHTTPRequestHandler):
             # SSE endpoint for real-time updates (v0.7.0)
             session_id = re.match(r"/api/claudecode/sessions/([^/]+)/stream$", path).group(1)
             self.handle_sse_stream(session_id)
+        elif re.match(r"/api/claudecode/sessions/([^/]+)/retained$", path):
+            # Get retained messages
+            session_id = re.match(r"/api/claudecode/sessions/([^/]+)/retained$", path).group(1)
+            retained = get_retained_messages(session_id)
+            self.send_json({"retained": retained, "count": len(retained)})
         elif path.startswith("/api/opencode/") and "/session/" in path:
             self.proxy_opencode_request(path)
         else:
@@ -2144,6 +2313,26 @@ class COADashHandler(BaseHTTPRequestHandler):
             result = delete_claude_session(session_id)
             if "error" in result:
                 self.send_json(result, 404)
+            else:
+                self.send_json(result)
+        elif re.match(r"/api/claudecode/sessions/([^/]+)/retained$", path):
+            # Clear all retained messages
+            session_id = re.match(r"/api/claudecode/sessions/([^/]+)/retained$", path).group(1)
+            with retained_messages_lock:
+                if session_id in retained_messages:
+                    count = len(retained_messages[session_id])
+                    retained_messages[session_id] = []
+                    self.send_json({"success": True, "cleared": count})
+                else:
+                    self.send_json({"success": True, "cleared": 0})
+        elif re.match(r"/api/claudecode/sessions/([^/]+)/retained/(\d+)$", path):
+            # Delete specific retained message by index
+            match = re.match(r"/api/claudecode/sessions/([^/]+)/retained/(\d+)$", path)
+            session_id = match.group(1)
+            index = int(match.group(2))
+            result = clear_retained_message(session_id, index)
+            if "error" in result:
+                self.send_json(result, 400)
             else:
                 self.send_json(result)
         else:

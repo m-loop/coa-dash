@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>COA-dash v0.7.0</title>
 <style>
-/* Fallback fonts in case Google Fonts is blocked */
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@400;500;600;700&display=swap&font-display=swap');
+/* Using system fonts to avoid external dependency blocked by VPN */
+/* Fallbacks: ui-monospace (Linux), SF Mono (macOS), Consolas (Windows) */
 
 * {
   margin: 0;
@@ -29,17 +29,17 @@
   --slate: #64748B;
   --red: #EF4444;
   --orange: #F97316;
-  --font-title: 16px;
-  --font-body: 14px;
-  --font-label: 12px;
-  --font-small: 11px;
-  --top-bar-height: 48px;
-  --bottom-nav-height: 56px;
+  --font-title: 14px;
+  --font-body: 12px;
+  --font-label: 10px;
+  --font-small: 9px;
+  --top-bar-height: 40px;
+  --bottom-nav-height: 48px;
   --sidebar-left-width: 240px;
   --sidebar-right-width: 200px;
-  --card-margin: 8px;
-  --card-padding: 12px;
-  --touch-target: 44px;
+  --card-margin: 6px;
+  --card-padding: 8px;
+  --touch-target: 36px;
   --transition-fast: 150ms ease-out;
   --transition-normal: 200ms ease-out;
   --toast-bg: rgba(0, 0, 0, 0.85);
@@ -47,18 +47,18 @@
 
 @media (min-width: 780px) {
   :root {
-    --font-title: 18px;
-    --font-body: 15px;
-    --font-label: 13px;
-    --font-small: 12px;
-    --top-bar-height: 56px;
-    --card-margin: 12px;
-    --card-padding: 16px;
+    --font-title: 15px;
+    --font-body: 13px;
+    --font-label: 11px;
+    --font-small: 10px;
+    --top-bar-height: 44px;
+    --card-margin: 10px;
+    --card-padding: 12px;
   }
 }
 
 html, body {
-  font-family: 'Fira Code', ui-monospace, monospace;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
   font-size: var(--font-body);
   color: var(--text);
   background: var(--bg);
@@ -68,7 +68,7 @@ html, body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Fira Sans', system-ui, sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-weight: 600;
 }
 
@@ -89,7 +89,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .top-bar-logo {
-  font-family: 'Fira Sans', sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: var(--font-title);
   font-weight: 700;
   color: var(--text);
@@ -531,7 +531,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .card-id {
-  font-family: 'Fira Sans', sans-serif;
+  font-family: system-ui, sans-serif;
   font-size: var(--font-title);
   font-weight: 600;
   color: var(--text);
@@ -678,8 +678,8 @@ h1, h2, h3, h4, h5, h6 {
 
 .btn-small {
   font-size: var(--font-small);
-  padding: var(--card-margin);
-  min-height: 36px;
+  padding: 2px 8px;
+  min-height: 28px;
 }
 
 .btn-priority {
@@ -1237,7 +1237,7 @@ h1, h2, h3, h4, h5, h6 {
 .confirm-dialog-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
 .confirm-dialog-overlay.visible { opacity: 1; pointer-events: auto; }
 .confirm-dialog { background: var(--primary); border: 1px solid var(--border); border-radius: 12px; padding: 20px; max-width: 320px; width: 90%; text-align: center; }
-.confirm-dialog-title { font-family: 'Fira Sans', sans-serif; font-size: var(--font-title); font-weight: 600; margin-bottom: 12px; color: var(--text); }
+.confirm-dialog-title { font-family: system-ui, sans-serif; font-size: var(--font-title); font-weight: 600; margin-bottom: 12px; color: var(--text); }
 .confirm-dialog-message { font-size: var(--font-body); color: var(--text-muted); margin-bottom: 20px; }
 .confirm-dialog-actions { display: flex; gap: 12px; justify-content: center; }
 .confirm-dialog-btn { padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: var(--font-body); cursor: pointer; border: none; min-height: 44px; }
@@ -1834,29 +1834,14 @@ h1, h2, h3, h4, h5, h6 {
 .claude-project-card {
   display: flex;
   align-items: center;
-  padding: 14px 16px;
-  background: linear-gradient(135deg, var(--primary) 0%, rgba(15, 23, 42, 0.8) 100%);
-  border-radius: 12px;
+  padding: 8px 10px;
+  background: var(--primary);
+  border-radius: 6px;
   border: 1px solid var(--border);
   cursor: pointer;
-  transition: all var(--transition-normal);
-  animation: slideUp 0.4s ease-out backwards;
-}
-
-.claude-project-card:nth-child(1) { animation-delay: 0.05s; }
-.claude-project-card:nth-child(2) { animation-delay: 0.1s; }
-.claude-project-card:nth-child(3) { animation-delay: 0.15s; }
-
-@media (min-width: 780px) {
-  .claude-project-card:hover {
-    border-color: var(--accent);
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, var(--primary) 100%);
-    transform: translateX(4px);
-  }
 }
 
 .claude-project-card:active {
-  transform: scale(0.98);
   background: var(--secondary);
 }
 
@@ -1864,38 +1849,41 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  margin-right: 12px;
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
   background: var(--secondary);
-  border-radius: 10px;
+  border-radius: 6px;
   flex-shrink: 0;
 }
 
 .claude-project-info {
   flex: 1;
   min-width: 0;
-  padding-top: 2px;
 }
 
 .claude-project-name {
-  font-weight: 600;
-  font-size: 15px;
+  font-weight: 500;
+  font-size: var(--font-body);
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .claude-session-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  font-size: 11px;
-  font-weight: 600;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: var(--font-small);
+  font-weight: 500;
+  background: var(--secondary);
+  border-radius: 4px;
+  color: var(--text-muted);
+}
   border-radius: 10px;
   background: var(--indigo);
   color: white;
@@ -1904,10 +1892,9 @@ h1, h2, h3, h4, h5, h6 {
 .claude-project-activity {
   font-size: var(--font-small);
   color: var(--text-muted);
-  margin-top: 4px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
 .claude-project-meta {
@@ -1915,8 +1902,7 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 4px;
-  padding-top: 2px;
+  gap: 2px;
 }
 
 .claude-session-list {
@@ -2101,41 +2087,78 @@ h1, h2, h3, h4, h5, h6 {
 .claude-conversation-header {
   display: flex;
   align-items: center;
-  gap: var(--card-margin);
-  padding: 12px 16px;
-  background: linear-gradient(180deg, var(--primary) 0%, rgba(15, 23, 42, 0.95) 100%);
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--primary);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .claude-conversation-title {
   flex: 1;
-  font-weight: 600;
-  font-size: 15px;
+  font-weight: 500;
+  font-size: var(--font-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .claude-conversation-status {
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
+  font-size: 16px;
+  padding: 0 4px;
+}
+
+.claude-conversation-status.working {
+  color: var(--yellow);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.claude-conversation-status.idle {
+  color: var(--slate);
+}
+
+.claude-conversation-status.error {
+  color: var(--red);
+}
   gap: 4px;
+  padding: 4px 10px;
+  background: rgba(99, 102, 241, 0.1);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+  font-size: var(--font-small);
+  color: var(--indigo);
 }
 
 .claude-sync-warning {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 4px;
+  padding: 3px 10px;
   background: rgba(99, 102, 241, 0.1);
   border-bottom: 1px solid rgba(99, 102, 241, 0.2);
-  font-size: 12px;
+  font-size: var(--font-small);
   color: var(--indigo);
+}
+
+.claude-retained-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(249, 115, 22, 0.15);
+  border-bottom: 1px solid rgba(249, 115, 22, 0.3);
+  font-size: var(--font-small);
+  color: var(--orange);
+}
+
+.claude-retained-bar .btn {
+  margin-left: auto;
+  font-size: var(--font-small);
+  padding: 2px 8px;
 }
 
 .sync-icon {
@@ -2145,15 +2168,18 @@ h1, h2, h3, h4, h5, h6 {
 .claude-conversation-status.working {
   background: rgba(250, 204, 21, 0.15);
   color: var(--yellow);
+  animation: pulse-bg 1s ease-in-out infinite;
+}
+
+@keyframes pulse-bg {
+  0%, 100% { background: rgba(250, 204, 21, 0.15); }
+  50% { background: rgba(250, 204, 21, 0.25); }
 }
 
 .claude-conversation-status.working::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--yellow);
-  animation: pulse 1s ease-in-out infinite;
+  content: '⚡';
+  margin-right: 4px;
+  animation: none;
 }
 
 .claude-conversation-status.idle {
@@ -2161,68 +2187,95 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--indigo);
 }
 
+.claude-conversation-status.done {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--green);
+}
+
 .claude-conversation-status.error {
   background: rgba(239, 68, 68, 0.15);
   color: var(--red);
+}
+
+/* Processing indicator bar */
+.claude-processing-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--yellow), transparent);
+  animation: slide-right 1.5s ease-in-out infinite;
+  z-index: 100;
+}
+
+@keyframes slide-right {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Working overlay */
+.claude-working-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: rgba(250, 204, 21, 0.1);
+  border-bottom: 1px solid rgba(250, 204, 21, 0.3);
+  font-size: var(--font-small);
+  color: var(--yellow);
+}
+
+.activity-icons {
+  display: flex;
+  gap: 2px;
+}
+
+.activity-icon {
+  font-size: 14px;
+}
+
+.activity-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .claude-messages {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px;
-  font-size: 16px;
-  line-height: 1.65;
+  padding: 8px;
+  font-size: var(--font-body);
+  line-height: 1.4;
   scroll-behavior: smooth;
 }
 
-/* Enhanced Message Styles */
+/* Compact Message Styles */
 .claude-message {
-  margin-bottom: 14px;
-  padding: 14px 16px;
-  border-radius: 12px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
   background: var(--primary);
-  animation: slideUp 0.25s ease-out backwards;
   position: relative;
 }
 
-.claude-message:nth-child(1) { animation-delay: 0.02s; }
-.claude-message:nth-child(2) { animation-delay: 0.04s; }
-.claude-message:nth-child(3) { animation-delay: 0.06s; }
-
 .claude-message.assistant {
-  background: linear-gradient(135deg, var(--secondary) 0%, rgba(30, 41, 59, 0.6) 100%);
-  border-left: 3px solid var(--accent);
+  background: var(--secondary);
+  border-left: 2px solid var(--accent);
 }
 
 .claude-message.user {
-  background: linear-gradient(135deg, var(--primary) 0%, rgba(15, 23, 42, 0.9) 100%);
-  border-left: 3px solid var(--indigo);
+  background: var(--primary);
+  border-left: 2px solid var(--indigo);
 }
 
 .message-role {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-small);
+  font-weight: 500;
   color: var(--text-muted);
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.message-role::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.claude-message.assistant .message-role::before {
-  background: var(--accent);
-}
-
-.claude-message.user .message-role::before {
-  background: var(--indigo);
+  margin-bottom: 2px;
 }
 
 .message-content {
@@ -2232,26 +2285,41 @@ h1, h2, h3, h4, h5, h6 {
 .message-text {
   white-space: pre-wrap;
   word-break: break-word;
+  font-size: var(--font-body);
 }
 
-.message-text.tool-result {
-  color: var(--slate);
-  font-size: 13px;
-  font-style: italic;
-  background: rgba(100, 116, 139, 0.1);
-  padding: 6px 10px;
-  border-radius: 6px;
+/* Mini badges for thinking/tools */
+.message-mini {
+  font-size: var(--font-small);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  display: inline-block;
 }
 
-/* Thinking Section */
-.message-thinking {
-  padding: 10px 14px;
-  background: rgba(250, 204, 21, 0.08);
-  border-radius: 8px;
-  margin-top: 8px;
+/* Result line - compact */
+.message-result {
+  font-size: var(--font-small);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.message-result.success {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--green);
+}
+
+.message-result.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--red);
+}
+
+.result-cost, .result-time {
   color: var(--text-muted);
-  font-style: italic;
-  border-left: 2px solid var(--yellow);
+}
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2328,7 +2396,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .code-content {
-  font-family: 'Fira Code', monospace;
+  font-family: ui-monospace, monospace;
   font-size: 13px;
   color: var(--text);
   white-space: pre;
@@ -2380,24 +2448,23 @@ h1, h2, h3, h4, h5, h6 {
 /* Input Area */
 .claude-input-area {
   display: flex;
-  gap: 10px;
-  padding: 12px 16px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, var(--primary) 100%);
+  gap: 6px;
+  padding: 6px 10px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+  background: var(--primary);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .claude-input-area input {
   flex: 1;
-  min-height: 44px;
-  padding: 0 14px;
-  font-size: 16px;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: var(--font-body);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 6px;
   color: var(--text);
-  transition: border-color var(--transition-fast);
 }
 
 .claude-input-area input:focus {
@@ -2409,11 +2476,11 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--slate);
 }
 
-/* Quick Commands */
+/* Quick Commands - compact */
 .claude-quick-commands {
   display: flex;
-  gap: 6px;
-  padding: 8px 16px;
+  gap: 4px;
+  padding: 4px 10px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -2426,21 +2493,19 @@ h1, h2, h3, h4, h5, h6 {
 
 .claude-cmd-btn {
   flex-shrink: 0;
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 4px 8px;
+  font-size: var(--font-small);
   font-weight: 500;
   background: var(--secondary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--text);
   cursor: pointer;
-  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
 .claude-cmd-btn:active {
   background: var(--border);
-  transform: scale(0.95);
 }
 
 @media (min-width: 780px) {
@@ -2765,14 +2830,6 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 500;
 }
 
-.btn-small {
-  padding: 8px 14px;
-  font-size: var(--font-small);
-  min-height: 36px;
-  border-radius: 8px;
-  font-weight: 600;
-}
-
 .btn-danger {
   background: rgba(239, 68, 68, 0.2);
   color: var(--red);
@@ -2885,7 +2942,7 @@ h1, h2, h3, h4, h5, h6 {
 
 <script>
 // State
-let currentTab = 'agents';
+let currentTab = 'claudecode';
 let currentStatusFilter = 'all';
 let currentPriorityFilter = 'all';
 let showCompletedTasks = false;  // D63: 默认隐藏已完成任务
@@ -3374,24 +3431,72 @@ function connectClaudeSSE(sessionId) {
   claudeEventSource.addEventListener('status', function(e) {
     const data = JSON.parse(e.data);
     if (currentClaudeSession) {
+      // Check if at bottom before render
+      const messagesEl = document.getElementById('claudeMessages');
+      const wasAtBottom = messagesEl && (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 30;
+
       currentClaudeSession.status = data.status;
       currentClaudeSession.activity = data.activity;
       currentClaudeSession.current_activity = data.current_activity;
       renderContent();
+
+      // Only scroll if was at bottom
+      if (wasAtBottom) {
+        const newEl = document.getElementById('claudeMessages');
+        if (newEl) newEl.scrollTop = newEl.scrollHeight;
+      }
     }
   });
 
   claudeEventSource.addEventListener('message', function(e) {
     const msg = JSON.parse(e.data);
+
+    // Skip internal message types that shouldn't be displayed
+    const skipTypes = ['system', 'queue-operation', 'summary', 'attachment', 'last-prompt', 'file-history-snapshot'];
+    if (skipTypes.includes(msg.type)) {
+      return;
+    }
+
+    // Skip tool_result user messages (not actual user input)
+    if (msg.type === 'user' && msg.message?.content && Array.isArray(msg.message.content)) {
+      const hasToolResult = msg.message.content.some(item => item.type === 'tool_result');
+      if (hasToolResult) {
+        return;
+      }
+    }
+
+    // Check if at bottom before adding message
+    const messagesEl = document.getElementById('claudeMessages');
+    const wasAtBottom = messagesEl && (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 30;
+
     claudeSessionMessages.push(msg);
     renderContent();
 
-    // Scroll to bottom
-    const messagesEl = document.getElementById('claudeMessages');
-    if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+    // Only scroll to bottom if was at bottom
+    if (wasAtBottom) {
+      const newEl = document.getElementById('claudeMessages');
+      if (newEl) newEl.scrollTop = newEl.scrollHeight;
+    }
   });
 
   claudeEventSource.addEventListener('done', function(e) {
+    // Check if at bottom before render
+    const messagesEl = document.getElementById('claudeMessages');
+    const wasAtBottom = messagesEl && (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 30;
+
+    // Reset status to idle
+    if (currentClaudeSession) {
+      currentClaudeSession.status = 'idle';
+      currentClaudeSession.current_activity = 'Done';
+      renderContent();
+    }
+
+    // Only scroll if was at bottom
+    if (wasAtBottom) {
+      const newEl = document.getElementById('claudeMessages');
+      if (newEl) newEl.scrollTop = newEl.scrollHeight;
+    }
+
     // Request notification permission on first completion if not set
     if (notificationPermission === 'default') {
       requestNotificationPermission();
@@ -3405,6 +3510,12 @@ function connectClaudeSSE(sessionId) {
 
   claudeEventSource.addEventListener('error', function(e) {
     const data = e.data ? JSON.parse(e.data) : {};
+    // Update status
+    if (currentClaudeSession) {
+      currentClaudeSession.status = 'error';
+      currentClaudeSession.current_activity = data.error || 'Error';
+      renderContent();
+    }
     showSmartNotification('Claude Error', {
       body: data.error || 'Unknown error',
       icon: '❌',
@@ -3413,9 +3524,27 @@ function connectClaudeSSE(sessionId) {
     });
   });
 
+  claudeEventSource.addEventListener('retained_available', function(e) {
+    const data = JSON.parse(e.data);
+    if (currentClaudeSession) {
+      currentClaudeSession.retainedMessages = data.messages;
+      currentClaudeSession.retainedCount = data.count;
+      currentClaudeSession.status = 'idle';
+      showToast('Terminal idle - ' + data.count + ' retained message(s) ready to retry', 'success');
+      renderContent();
+    }
+  });
+
   claudeEventSource.onerror = function() {
-    // Connection closed or error
-    console.log('SSE connection closed');
+    // Connection closed or error - try to reconnect
+    console.log('SSE connection error, reconnecting...');
+    if (currentClaudeSession) {
+      setTimeout(() => {
+        if (currentClaudeSession) {
+          connectClaudeSSE(currentClaudeSession.id);
+        }
+      }, 2000);
+    }
   };
 }
 
@@ -3508,10 +3637,13 @@ function renderClaudeCode(container) {
       html += '</div>';
       html += '<div class="claude-project-activity">';
       if (latest.messageCount > 0) {
-        html += '<span class="claude-session-msg-count">' + latest.messageCount + ' msgs</span>';
+        html += '<span class="claude-session-msg-count">' + latest.messageCount + '</span>';
         html += '<span>·</span>';
       }
-      html += '<span>' + escapeHtml(latest.activity || latest.status) + '</span>';
+      // Simplify activity display
+      const activityText = latest.activity || latest.status;
+      const simpleActivity = activityText.startsWith('Tool:') ? 'Working...' : activityText;
+      html += '<span>' + escapeHtml(simpleActivity) + '</span>';
       html += '</div>';
       html += '</div>';
       html += '<div class="claude-project-meta">';
@@ -3533,22 +3665,64 @@ function renderClaudeCode(container) {
 function renderClaudeConversation(container) {
   const s = currentClaudeSession;
   const statusClass = s.status || 'idle';
+  const isWorking = s.status === 'working';
 
-  let html = '<div class="claude-conversation">';
+  let html = '<div class="claude-conversation' + (isWorking ? ' working' : '') + '">';
 
-  // Header
+  // Processing bar (visible when working)
+  if (isWorking) {
+    html += '<div class="claude-processing-bar"></div>';
+  }
+
+  // Header - compact
   html += '<div class="claude-conversation-header">';
-  html += '<button class="btn btn-secondary" onclick="closeClaudeConversation()">← Back</button>';
+  html += '<button class="btn btn-secondary btn-small" onclick="closeClaudeConversation()">←</button>';
   html += '<span class="claude-conversation-title">' + escapeHtml(s.name) + '</span>';
-  html += '<span class="claude-conversation-status ' + statusClass + '">' + s.status + '</span>';
-  html += '<button class="btn btn-danger btn-small" onclick="deleteClaudeSession(\'' + s.id + '\')">Delete</button>';
+  // Status dot instead of text
+  const statusIcon = isWorking ? '●' : (s.status === 'error' ? '✗' : '○');
+  html += '<span class="claude-conversation-status ' + statusClass + '">' + statusIcon + '</span>';
   html += '</div>';
 
-  // Linked session warning
+  // Working indicator with icon queue
+  if (isWorking) {
+    html += '<div class="claude-working-indicator">';
+    // Activity icon queue
+    const activity = s.current_activity || '';
+    const icons = [];
+
+    if (activity.includes('Thinking')) {
+      icons.push('<span class="activity-icon thinking">💭</span>');
+    }
+    if (activity.includes('Tool:') || activity.includes('Bash') || activity.includes('Read') || activity.includes('Edit') || activity.includes('Write') || activity.includes('Grep') || activity.includes('Glob')) {
+      icons.push('<span class="activity-icon tool">🔧</span>');
+    }
+    if (activity.includes('Sending')) {
+      icons.push('<span class="activity-icon sending">📤</span>');
+    }
+
+    // Default if no specific icons
+    if (icons.length === 0) {
+      icons.push('<span class="activity-icon processing">⚡</span>');
+    }
+
+    html += '<div class="activity-icons">' + icons.join('') + '</div>';
+    html += '<span class="activity-text">' + escapeHtml(activity || 'Processing') + '</span>';
+    html += '</div>';
+  }
+
+  // Linked session - compact warning
   if (s.claudeSessionId) {
     html += '<div class="claude-sync-warning">';
-    html += '<span class="sync-icon">🔗</span>';
-    html += '<span>Linked to external session - messages sync automatically. Avoid simultaneous input.</span>';
+    html += '<span>🔗 External session</span>';
+    html += '</div>';
+  }
+
+  // Retained messages indicator - compact
+  if (s.retainedCount > 0) {
+    html += '<div class="claude-retained-bar">';
+    html += '<span>📥 ' + s.retainedCount + ' retained</span>';
+    html += '<button class="btn btn-small btn-primary" onclick="retryRetainedMessages()">Retry</button>';
+    html += '<button class="btn btn-small btn-secondary" onclick="clearRetainedMessages()">Clear</button>';
     html += '</div>';
   }
 
@@ -3561,17 +3735,16 @@ function renderClaudeConversation(container) {
     html += '<div class="claude-empty-hint">Type a message below to begin</div>';
     html += '</div>';
   } else {
-    claudeSessionMessages.forEach(msg => {
-      html += renderClaudeMessage(msg);
-    });
+    // Filter out empty renders
+    const rendered = claudeSessionMessages.map(msg => renderClaudeMessage(msg)).filter(h => h);
+    html += rendered.join('');
   }
   html += '</div>';
 
-  // Quick command buttons
+  // Quick command buttons - minimal
   html += '<div class="claude-quick-commands">';
-  html += '<button class="claude-cmd-btn" onclick="sendQuickCommand(\'Continue what you were doing\')">▶ Continue</button>';
-  html += '<button class="claude-cmd-btn" onclick="sendQuickCommand(\'Explain what you just did\')">💡 Explain</button>';
-  html += '<button class="claude-cmd-btn" onclick="sendQuickCommand(\'Fix any issues\')">🔧 Fix</button>';
+  html += '<button class="claude-cmd-btn" onclick="sendQuickCommand(\'Continue\')">▶</button>';
+  html += '<button class="claude-cmd-btn" onclick="sendQuickCommand(\'Explain\')">💡</button>';
   html += '</div>';
 
   // Input area
@@ -3590,109 +3763,73 @@ function renderClaudeConversation(container) {
 
 function renderClaudeMessage(msg) {
   const type = msg.type || 'unknown';
+
+  // Skip internal message types
+  const skipTypes = ['system', 'queue-operation', 'summary', 'attachment', 'last-prompt', 'file-history-snapshot', 'result'];
+  if (skipTypes.includes(type)) {
+    return '';
+  }
+
+  // Skip tool_result user messages
+  if (type === 'user' && msg.message?.content && Array.isArray(msg.message.content)) {
+    const hasToolResult = msg.message.content.some(item => item.type === 'tool_result');
+    if (hasToolResult) {
+      return '';
+    }
+  }
+
   let html = '<div class="claude-message ' + type + '">';
 
-  if (type === 'system') {
-    const modelInfo = msg.model || 'unknown model';
-    const cwdInfo = msg.cwd || '';
-    html += '<div class="message-system">';
-    html += '<span>⚡ System initialized</span>';
-    html += '<span style="margin-left:8px;color:var(--accent)">' + modelInfo + '</span>';
-    if (cwdInfo) html += '<span style="margin-left:8px;color:var(--slate)">' + cwdInfo + '</span>';
-    html += '</div>';
-  } else if (type === 'user') {
-    html += '<div class="message-role">You</div>';
+  if (type === 'user') {
+    // Detect source: terminal or dashboard
+    const source = msg.source || 'terminal';
+    const sourceIcon = source === 'dashboard' ? '📱' : '💻';
+
+    html += '<div class="message-role">' + sourceIcon + ' You</div>';
     html += '<div class="message-content">';
-    // Claude format: msg.message.content can be string OR array (tool_result)
     let userContent = '';
-    let isToolResult = false;
+
     if (msg.message && msg.message.content) {
       const c = msg.message.content;
       if (typeof c === 'string') {
         userContent = c;
       } else if (Array.isArray(c)) {
-        // Tool result - show summary
         const toolResults = c.filter(item => item.type === 'tool_result');
         if (toolResults.length > 0) {
-          userContent = 'Tool returned: ' + toolResults.length + ' result(s)';
-          isToolResult = true;
+          return ''; // Skip tool results entirely
         } else {
-          userContent = JSON.stringify(c).substring(0, 100);
+          userContent = 'Content';
         }
       }
     } else if (typeof msg.content === 'string') {
       userContent = msg.content;
     }
-    if (isToolResult) {
-      html += '<div class="message-text tool-result">' + escapeHtml(userContent) + '</div>';
-    } else {
-      html += '<div class="message-text">' + escapeHtml(userContent) + '</div>';
-    }
+
+    html += '<div class="message-text">' + escapeHtml(userContent) + '</div>';
     html += '</div>';
   } else if (type === 'assistant') {
     const message = msg.message || {};
     const content = message.content || [];
 
+    // Check if there's any text content to show
+    const textContent = content.filter(c => c.type === 'text');
+    if (textContent.length === 0) {
+      return ''; // Skip messages with no text content (thinking/tool_use only)
+    }
+
     html += '<div class="message-role">Claude</div>';
     html += '<div class="message-content">';
 
-    content.forEach(c => {
-      if (c.type === 'text') {
-        // Check for code blocks in text
-        const text = c.text || '';
-        const codeBlocks = parseCodeBlocks(text);
-        if (codeBlocks.length > 0) {
-          codeBlocks.forEach(block => {
-            if (block.type === 'code') {
-              html += '<div class="message-code">';
-              html += '<div class="code-header"><span class="code-lang">' + block.lang + '</span></div>';
-              html += '<pre class="code-content">' + escapeHtml(block.content) + '</pre>';
-              html += '</div>';
-            } else {
-              html += '<div class="message-text">' + escapeHtml(block.content) + '</div>';
-            }
-          });
-        } else {
-          html += '<div class="message-text">' + escapeHtml(text) + '</div>';
-        }
-      } else if (c.type === 'thinking') {
-        const thinkingText = c.thinking || 'Thinking...';
-        html += '<div class="message-thinking">' + escapeHtml(thinkingText.substring(0, 200)) + (thinkingText.length > 200 ? '...' : '') + '</div>';
-      } else if (c.type === 'tool_use') {
-        html += '<div class="message-tool">';
-        html += '<div class="tool-header">';
-        html += '<span class="tool-icon">🔧</span>';
-        html += '<span class="tool-name">' + escapeHtml(c.name || 'tool') + '</span>';
-        html += '</div>';
-        if (c.input) {
-          const inputStr = JSON.stringify(c.input, null, 2);
-          html += '<div class="tool-input">' + escapeHtml(inputStr.substring(0, 300)) + (inputStr.length > 300 ? '...' : '') + '</div>';
-        }
-        html += '</div>';
-      }
+    // Only show text content
+    textContent.forEach(c => {
+      const text = c.text || '';
+      html += '<div class="message-text">' + escapeHtml(text) + '</div>';
     });
 
     html += '</div>';
-  } else if (type === 'result') {
-    const isError = msg.subtype === 'error';
-    const cost = msg.total_cost_usd || 0;
-    const duration = msg.duration_ms || 0;
-    html += '<div class="message-result ' + (isError ? 'error' : 'success') + '">';
-    if (isError) {
-      html += '<span>Error</span>';
-      if (msg.error) html += '<span style="margin-left:8px">' + escapeHtml(String(msg.error).substring(0, 100)) + '</span>';
-    } else {
-      html += '<span>Completed</span>';
-      if (cost > 0) html += '<span style="margin-left:8px;color:var(--green)">$' + cost.toFixed(2) + '</span>';
-      if (duration > 0) html += '<span style="margin-left:8px">' + Math.round(duration/1000) + 's</span>';
-    }
-    html += '</div>';
   } else {
-    // Skip internal types like queue-operation, summary, attachment, last-prompt
-    if (type === 'queue-operation' || type === 'summary' || type === 'attachment' || type === 'last-prompt') {
-      return '';
-    }
-    html += '<div class="message-system">' + escapeHtml(JSON.stringify(msg).substring(0, 200)) + '</div>';
+    // Skip all other types
+    return '';
   }
 
   html += '</div>';
@@ -3762,9 +3899,18 @@ async function sendClaudeMessage() {
 
   input.value = '';
 
-  // Add user message to UI immediately
-  claudeSessionMessages.push({ type: 'user', content: content });
+  // Set status to working immediately for visual feedback
+  currentClaudeSession.status = 'working';
+  currentClaudeSession.current_activity = 'Sending message...';
   renderContent();
+
+  // Add user message to UI immediately with dashboard source
+  claudeSessionMessages.push({ type: 'user', content: content, source: 'dashboard' });
+  renderContent();
+
+  // Scroll to bottom
+  const messagesEl = document.getElementById('claudeMessages');
+  if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
 
   // Send to API
   const result = await fetchAPI('/api/claudecode/sessions/' + currentClaudeSession.id + '/message', {
@@ -3775,6 +3921,20 @@ async function sendClaudeMessage() {
 
   if (result?.error) {
     showToast('Failed to send: ' + result.error, 'error');
+    currentClaudeSession.status = 'error';
+    currentClaudeSession.current_activity = result.error;
+    renderContent();
+  } else if (result?.retained) {
+    // Message retained due to terminal busy
+    showToast('Message retained - terminal busy', 'warning');
+    currentClaudeSession.status = 'retained';
+    currentClaudeSession.current_activity = 'Terminal busy - message retained';
+    currentClaudeSession.retainedCount = (currentClaudeSession.retainedCount || 0) + 1;
+    renderContent();
+  } else {
+    // Update activity indicator
+    currentClaudeSession.current_activity = 'Claude is thinking...';
+    renderContent();
   }
 }
 
@@ -3793,6 +3953,44 @@ async function sendQuickCommand(text) {
     input.value = text;
   }
   await sendClaudeMessage();
+}
+
+async function retryRetainedMessages() {
+  if (!currentClaudeSession || !currentClaudeSession.retainedMessages?.length) return;
+
+  const retained = currentClaudeSession.retainedMessages[0];
+  if (!retained) return;
+
+  // Send the first retained message
+  const input = document.getElementById('claudeInput');
+  if (input) {
+    input.value = retained.content;
+  }
+
+  // Clear it from retained list
+  await fetchAPI('/api/claudecode/sessions/' + currentClaudeSession.id + '/retained/0', {
+    method: 'DELETE'
+  });
+
+  currentClaudeSession.retainedMessages.shift();
+  currentClaudeSession.retainedCount = currentClaudeSession.retainedMessages.length;
+  renderContent();
+
+  // Now send
+  await sendClaudeMessage();
+}
+
+async function clearRetainedMessages() {
+  if (!currentClaudeSession) return;
+
+  await fetchAPI('/api/claudecode/sessions/' + currentClaudeSession.id + '/retained', {
+    method: 'DELETE'
+  });
+
+  currentClaudeSession.retainedMessages = [];
+  currentClaudeSession.retainedCount = 0;
+  showToast('Retained messages cleared', 'success');
+  renderContent();
 }
 
 async function deleteClaudeSession(sessionId) {
