@@ -4497,14 +4497,6 @@ if (originalRenderTasks) {
 
 // Initial setup
 document.addEventListener('DOMContentLoaded', initSwipeOnCards);
-    document.addEventListener('click', function closeDropdown(e) {
-      if (!badge.contains(e.target)) {
-        menu.classList.remove('show');
-        document.removeEventListener('click', closeDropdown);
-      }
-    });
-  }, 10);
-}
 
 function selectPriority(taskId, priority, item) {
   setPriority(taskId, priority);
