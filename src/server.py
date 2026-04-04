@@ -13,7 +13,7 @@ import threading
 import time
 import uuid
 import queue
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime
 
@@ -2523,8 +2523,8 @@ class COADashHandler(BaseHTTPRequestHandler):
             self.send_error(404, "File not found")
 
 
-class ReusableHTTPServer(HTTPServer):
-    """HTTPServer with SO_REUSEADDR enabled"""
+class ReusableHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer with SO_REUSEADDR enabled"""
 
     allow_reuse_address = True
 
