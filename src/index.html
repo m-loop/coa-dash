@@ -3350,20 +3350,10 @@ function connectClaudeSSE(sessionId) {
   claudeEventSource.addEventListener('status', function(e) {
     const data = JSON.parse(e.data);
     if (currentClaudeSession) {
-      // Check if at bottom before render
-      const messagesEl = document.getElementById('claudeMessages');
-      const wasAtBottom = messagesEl && (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 30;
-
       currentClaudeSession.status = data.status;
       currentClaudeSession.activity = data.activity;
       currentClaudeSession.current_activity = data.current_activity;
-      renderContent();
-
-      // Only scroll if was at bottom
-      if (wasAtBottom) {
-        const newEl = document.getElementById('claudeMessages');
-        if (newEl) newEl.scrollTop = newEl.scrollHeight;
-      }
+      updateClaudeStatusUI();
     }
   });
 
@@ -3384,50 +3374,24 @@ function connectClaudeSSE(sessionId) {
       }
     }
 
-    // Save input state before render
-    const inputEl = document.getElementById('claudeInput');
-    const wasInputFocused = inputEl === document.activeElement;
-    const inputCursor = inputEl?.selectionStart;
-    const inputValue = inputEl?.value;
-
-    // Check if at bottom before adding message
-    const messagesEl = document.getElementById('claudeMessages');
-    const wasAtBottom = messagesEl && (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 30;
-
+    // Add message to array
     claudeSessionMessages.push(msg);
-    renderContent();
 
-    // Restore input focus
-    if (wasInputFocused) {
-      const newInput = document.getElementById('claudeInput');
-      if (newInput) {
-        newInput.value = inputValue || '';
-        newInput.focus();
-        if (inputCursor) newInput.setSelectionRange(inputCursor, inputCursor);
-      }
-    }
-
-    // Only scroll to bottom if was at bottom
-    if (wasAtBottom) {
-      const newEl = document.getElementById('claudeMessages');
-      if (newEl) newEl.scrollTop = newEl.scrollHeight;
-    }
+    // Incremental append instead of full rebuild
+    appendClaudeMessage(msg);
   });
 
   claudeEventSource.addEventListener('done', function(e) {
-    // Check if at bottom before render
-    const messagesEl = document.getElementById('claudeMessages');
-    const wasAtBottom = messagesEl && (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 30;
-
-    // Reset status to idle
+    // Reset status to idle without full rebuild
     if (currentClaudeSession) {
       currentClaudeSession.status = 'idle';
       currentClaudeSession.current_activity = 'Done';
-      renderContent();
+      updateClaudeStatusUI();
     }
 
-    // Only scroll if was at bottom
-    if (wasAtBottom) {
+    // Auto-scroll if at bottom
+    const messagesEl = document.getElementById('claudeMessages');
+    if (messagesEl) {
       const newEl = document.getElementById('claudeMessages');
       if (newEl) newEl.scrollTop = newEl.scrollHeight;
     }
@@ -3779,6 +3743,77 @@ function renderClaudeMessage(msg) {
 
   html += '</div>';
   return html;
+}
+
+// Incremental UI updates (no DOM rebuild)
+function updateClaudeStatusUI() {
+  if (!currentClaudeSession) return;
+  const s = currentClaudeSession;
+  const isWorking = s.status === 'working';
+
+  // Update status dot
+  const statusEl = document.querySelector('.claude-conversation-status');
+  if (statusEl) {
+    statusEl.className = 'claude-conversation-status ' + (s.status || 'idle');
+    statusEl.textContent = isWorking ? '●' : (s.status === 'error' ? '✗' : '○');
+  }
+
+  // Update working indicator
+  const existingIndicator = document.querySelector('.claude-working-indicator');
+  if (isWorking && !existingIndicator) {
+    const header = document.querySelector('.claude-conversation-header');
+    if (header) {
+      const indicator = document.createElement('div');
+      indicator.className = 'claude-working-indicator';
+      const activity = s.current_activity || '';
+      const icons = [];
+      if (activity.includes('Thinking')) icons.push('💭');
+      if (activity.includes('Tool:') || activity.includes('Bash')) icons.push('🔧');
+      if (icons.length === 0) icons.push('⚡');
+      indicator.innerHTML = '<div class="activity-icons">' + icons.map(i => '<span class="activity-icon">' + i + '</span>').join('') + '</div><span class="activity-text">' + escapeHtml(activity || 'Processing') + '</span>';
+      header.after(indicator);
+    }
+  } else if (isWorking && existingIndicator) {
+    const textEl = existingIndicator.querySelector('.activity-text');
+    if (textEl) textEl.textContent = s.current_activity || 'Processing';
+  } else if (!isWorking && existingIndicator) {
+    existingIndicator.remove();
+  }
+
+  // Update processing bar
+  const existingBar = document.querySelector('.claude-processing-bar');
+  const conv = document.querySelector('.claude-conversation');
+  if (isWorking && !existingBar && conv) {
+    const bar = document.createElement('div');
+    bar.className = 'claude-processing-bar';
+    conv.prepend(bar);
+  } else if (!isWorking && existingBar) {
+    existingBar.remove();
+    if (conv) conv.classList.remove('working');
+  }
+}
+
+function appendClaudeMessage(msg) {
+  const rendered = renderClaudeMessage(msg);
+  if (!rendered) return;
+
+  const container = document.getElementById('claudeMessages');
+  if (!container) return;
+
+  // Check if at bottom before append
+  const wasAtBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 30;
+
+  // Append the new message
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = rendered;
+  while (wrapper.firstChild) {
+    container.appendChild(wrapper.firstChild);
+  }
+
+  // Auto-scroll only if was at bottom
+  if (wasAtBottom) {
+    container.scrollTop = container.scrollHeight;
+  }
 }
 
 
