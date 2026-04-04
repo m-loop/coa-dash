@@ -2001,6 +2001,18 @@ class COADashHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         print(f"[{self.address_string()}] {args[0]}")
 
+    def do_OPTIONS(self):
+        """Handle CORS preflight requests"""
+        origin = self.headers.get("Origin", "")
+        allowed_origins = self.config.get("allowedOrigins", [])
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Max-Age", "86400")
+        if origin and origin in allowed_origins:
+            self.send_header("Access-Control-Allow-Origin", origin)
+        self.end_headers()
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
