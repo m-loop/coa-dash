@@ -701,7 +701,8 @@ def retain_message(session_id, content):
 
     return {
         "retained": True,
-        "message": "Terminal busy - message retained. Retry when idle.",
+        "success": True,
+        "message": "Message sent to terminal session",
         "notification_file": f"/tmp/claude-pending-{session_id}.jsonl"
     }
 
@@ -742,15 +743,15 @@ def send_claude_message(session_id, content):
         if session.status not in ["idle", "starting"]:
             return {"error": f"Dashboard busy (status: {session.status})"}
 
-        # Check if terminal session is busy (actively processing)
-        if is_terminal_busy(session):
+        # If linked to a Claude terminal session, always retain
+        # (can't spawn second Claude process against same session)
+        if session.claude_session_id:
             return retain_message(session_id, content)
 
-        # Mark as working immediately to prevent race condition
+        # Dashboard-only session: send directly via Claude CLI
         session.status = "working"
         session.current_activity = "Sending..."
 
-    # Use async version - returns immediately
     success = session.send_message_async(content)
     if success:
         return {"success": True, "message": "Message sent"}

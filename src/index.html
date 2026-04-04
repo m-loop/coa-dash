@@ -3845,11 +3845,10 @@ async function sendClaudeMessage() {
     currentClaudeSession.current_activity = result.error;
     renderContent();
   } else if (result?.retained) {
-    // Message retained due to terminal busy
-    showToast('Message retained - terminal busy', 'warning');
-    currentClaudeSession.status = 'retained';
-    currentClaudeSession.current_activity = 'Terminal busy - message retained';
-    currentClaudeSession.retainedCount = (currentClaudeSession.retainedCount || 0) + 1;
+    // Message written to terminal session's pending file
+    showToast('Message sent to terminal', 'success');
+    currentClaudeSession.current_activity = 'Message delivered to terminal';
+    renderContent();
     renderContent();
   } else {
     // Update activity indicator
