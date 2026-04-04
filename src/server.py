@@ -162,7 +162,7 @@ class ClaudeSession:
                                     self.messages.append(data)
                                     self._parse_status(data)
                                     broadcast_session_update(self.id, "message", data)
-                                except:
+                                except Exception:
                                     pass
 
                 save_sessions_metadata()
@@ -234,7 +234,7 @@ class ClaudeSession:
                                 self._parse_status(data)
                                 # Broadcast each message for real-time updates
                                 broadcast_session_update(self.id, "message", data)
-                            except:
+                            except Exception:
                                 pass
 
             # Save metadata to persist claude_session_id for recovery
@@ -273,7 +273,7 @@ class ClaudeSession:
         try:
             if os.path.exists(self.buffer_file):
                 os.remove(self.buffer_file)
-        except:
+        except Exception:
             pass
 
     def get_info(self):
@@ -341,7 +341,7 @@ def broadcast_session_update(session_id, event_type, data):
         for q in subscribers:
             try:
                 q.put({"type": event_type, "data": data})
-            except:
+            except Exception:
                 pass  # Queue might be full or closed
 
 
@@ -373,7 +373,7 @@ def remove_sse_subscriber(session_id, q):
                     del sse_subscribers[session_id]
                     # No more subscribers - stop file watcher
                     stop_file_watcher(session_id)
-            except:
+            except Exception:
                 pass
 
 
@@ -544,9 +544,9 @@ def load_sessions_metadata():
                         for line in bf:
                             try:
                                 session.messages.append(json.loads(line.strip()))
-                            except:
+                            except Exception:
                                 pass
-                except:
+                except Exception:
                     pass
 
                 session.status = "idle"
@@ -624,7 +624,7 @@ def get_claude_session_history(session_id, limit=50):
                         if line.strip():
                             try:
                                 history.append(json.loads(line.strip()))
-                            except:
+                            except Exception:
                                 pass
                 except Exception as e:
                     print(f"[WARN] Failed to read Claude session file: {e}")
@@ -638,9 +638,9 @@ def get_claude_session_history(session_id, limit=50):
                         if line.strip():
                             try:
                                 history.append(json.loads(line.strip()))
-                            except:
+                            except Exception:
                                 pass
-            except:
+            except Exception:
                 pass
 
         # Fallback to in-memory
@@ -746,6 +746,10 @@ def send_claude_message(session_id, content):
         if is_terminal_busy(session):
             return retain_message(session_id, content)
 
+        # Mark as working immediately to prevent race condition
+        session.status = "working"
+        session.current_activity = "Sending..."
+
     # Use async version - returns immediately
     success = session.send_message_async(content)
     if success:
@@ -816,9 +820,9 @@ def list_available_claude_sessions(cwd=None):
                                                 first_user_msg = c["text"][:80]
                                                 break
                                 message_count += 1
-                            except:
+                            except Exception:
                                 pass
-                except:
+                except Exception:
                     pass
 
                 # Check if this session is already in our active sessions
@@ -842,7 +846,7 @@ def list_available_claude_sessions(cwd=None):
                     )
                     if result.returncode == 0 and result.stdout.strip():
                         is_active_in_terminal = True
-                except:
+                except Exception:
                     pass
 
                 sessions.append({
@@ -862,13 +866,12 @@ def list_available_claude_sessions(cwd=None):
                     "isActiveInTerminal": is_active_in_terminal,
                     "title": f"{project_name}/{slug}",
                 })
+
     except Exception as e:
         return {"sessions": [], "error": str(e)}
 
-        # Sort by mtime descending
-        sessions.sort(key=lambda s: s["mtime"], reverse=True)
-    except Exception as e:
-        return {"sessions": [], "error": str(e)}
+    # Sort by mtime descending
+    sessions.sort(key=lambda s: s["mtime"], reverse=True)
 
     return {"sessions": sessions, "count": len(sessions)}
 
@@ -904,7 +907,7 @@ def import_claude_session(session_id, name, cwd):
                             msg = json.loads(line.strip())
                             session.messages.append(msg)
                             dst.write(line)
-                        except:
+                        except Exception:
                             pass
         except Exception as e:
             print(f"[WARN] Failed to copy session history: {e}")
@@ -1050,7 +1053,7 @@ def get_session_info(config, agent_id):
             "lastChannel": last_channel,
             "currentActivity": current_activity,
         }
-    except:
+    except Exception:
         return {"sessionCount": 0}
 
 
@@ -1254,7 +1257,7 @@ def get_all_sessions_for_agent(config, agent_id):
         if isinstance(data, dict):
             return list(data.items())
         return []
-    except:
+    except Exception:
         return []
 
 
@@ -1279,11 +1282,11 @@ def get_session_job_name(session_file_path):
                                         jobs = text_data.get("jobs", [])
                                         if jobs and len(jobs) > 0:
                                             return jobs[0].get("name", "")
-                                    except:
+                                    except Exception:
                                         pass
-                except:
+                except Exception:
                     pass
-    except:
+    except Exception:
         pass
     return ""
 
@@ -1339,7 +1342,7 @@ def get_tasks(config, filters=None):
 
                         task["children"] = []
                         tasks.append(task)
-                    except:
+                    except Exception:
                         pass
     except Exception as e:
         return {"tasks": [], "stats": {}, "error": str(e)}
@@ -1401,7 +1404,7 @@ def update_task_priority(config, task_id, priority):
                         task["priority"] = priority
                         found = True
                     f.write(json.dumps(task, ensure_ascii=False) + "\n")
-                except:
+                except Exception:
                     f.write(line + "\n")
             else:
                 f.write("\n")
@@ -1435,7 +1438,7 @@ def update_task_status(config, task_id, status):
                         task["status"] = status
                         found = True
                     f.write(json.dumps(task, ensure_ascii=False) + "\n")
-                except:
+                except Exception:
                     f.write(line + "\n")
             else:
                 f.write("\n")
@@ -1469,7 +1472,7 @@ def update_task_status_batch(config, task_ids, status):
                         task["status"] = status
                         updated_count += 1
                     f.write(json.dumps(task, ensure_ascii=False) + "\n")
-                except:
+                except Exception:
                     f.write(line + "\n")
             else:
                 f.write("\n")
@@ -1500,7 +1503,7 @@ def delete_task(config, task_id):
                         found = True
                         continue  # Skip this line (delete it)
                     f.write(json.dumps(task, ensure_ascii=False) + "\n")
-                except:
+                except Exception:
                     f.write(line + "\n")
             else:
                 f.write("\n")
@@ -1534,7 +1537,7 @@ def update_task_assignee(config, task_id, assignee):
                         task["assignee"] = assignee if assignee else ""
                         found = True
                     f.write(json.dumps(task, ensure_ascii=False) + "\n")
-                except:
+                except Exception:
                     f.write(line + "\n")
             else:
                 f.write("\n")
@@ -1582,7 +1585,7 @@ def get_stats(config):
                 if line:
                     try:
                         tasks.append(json.loads(line))
-                    except:
+                    except Exception:
                         pass
 
     task_counts = {
@@ -1911,7 +1914,7 @@ def execute_task(config, task_id, agent_id, agent_type="openclaw"):
                         found = True
                         task_data = task
                     f.write(json.dumps(task, ensure_ascii=False) + "\n")
-                except:
+                except Exception:
                     f.write(line + "\n")
             else:
                 f.write("\n")
@@ -1981,7 +1984,7 @@ def execute_task(config, task_id, agent_id, agent_type="openclaw"):
                         if task.get("task_id") == task_id:
                             task["status"] = "待处理"
                         f.write(json.dumps(task, ensure_ascii=False) + "\n")
-                    except:
+                    except Exception:
                         f.write(line + "\n")
                 else:
                     f.write("\n")
@@ -2393,6 +2396,8 @@ class COADashHandler(BaseHTTPRequestHandler):
                     # Send keepalive comment
                     self.wfile.write(b": keepalive\n\n")
                     self.wfile.flush()
+                    # Check for retained messages that can now be sent
+                    check_terminal_idle_and_alert(session_id)
 
         except (BrokenPipeError, ConnectionResetError):
             # Client disconnected
@@ -2406,7 +2411,7 @@ class COADashHandler(BaseHTTPRequestHandler):
             event_str = f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
             self.wfile.write(event_str.encode("utf-8"))
             self.wfile.flush()
-        except:
+        except Exception:
             raise BrokenPipeError()
 
     def proxy_opencode_request(self, path):
@@ -2481,11 +2486,26 @@ class COADashHandler(BaseHTTPRequestHandler):
             with open(path, "r", encoding="utf-8") as f:
                 content = f.read()
             encoded = content.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(encoded)))
-            self.end_headers()
-            self.wfile.write(encoded)
+
+            # Check if client supports gzip
+            accept_encoding = self.headers.get("Accept-Encoding", "")
+            if "gzip" in accept_encoding and len(encoded) > 500:
+                import gzip
+                compressed = gzip.compress(encoded)
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Encoding", "gzip")
+                self.send_header("Content-Length", str(len(compressed)))
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.wfile.write(compressed)
+            else:
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(encoded)))
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.wfile.write(encoded)
         except FileNotFoundError:
             self.send_error(404, "File not found")
 

@@ -450,6 +450,32 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Filter Bar (v0.4.0 - Two Rows) */
+.task-search-bar {
+  margin: calc(-1 * var(--card-padding));
+  margin-bottom: var(--card-margin);
+  padding: var(--card-margin);
+  padding-bottom: 0;
+}
+
+.task-search-bar input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: var(--font-body);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  outline: none;
+}
+
+.task-search-bar input:focus {
+  border-color: var(--accent);
+}
+
+.task-search-bar input::placeholder {
+  color: var(--slate);
+}
+
 .filter-bar {
   background: var(--primary);
   border-bottom: 1px solid var(--border);
@@ -673,13 +699,15 @@ h1, h2, h3, h4, h5, h6 {
 .btn-primary:active { background: #16a34a; }
 
 .btn-icon {
-  padding: var(--card-margin);
+  padding: 6px;
+  min-width: 36px;
+  min-height: 36px;
 }
 
 .btn-small {
   font-size: var(--font-small);
-  padding: 2px 8px;
-  min-height: 28px;
+  padding: 4px 10px;
+  min-height: 36px;
 }
 
 .btn-priority {
@@ -765,122 +793,6 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* Coming Soon */
-.coming-soon {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: calc(var(--card-padding) * 4);
-  text-align: center;
-}
-
-.coming-soon-icon {
-  font-size: 64px;
-  margin-bottom: var(--card-padding);
-}
-
-.coming-soon-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: var(--card-margin);
-}
-
-.coming-soon-text {
-  font-size: var(--font-body);
-  color: var(--text-muted);
-}
-
-/* Config */
-.config-section {
-  margin-bottom: var(--card-padding);
-}
-
-.config-title {
-  font-size: var(--font-label);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: var(--card-margin);
-  padding-bottom: var(--card-margin);
-  border-bottom: 1px solid var(--border);
-}
-
-.config-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--card-margin) 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.config-item:last-child { border-bottom: none; }
-.config-label { font-size: var(--font-body); color: var(--text-muted); }
-.config-value { font-size: var(--font-body); color: var(--text); }
-
-/* Stats (Phase 2) */
-.stats-section {
-  margin-bottom: var(--card-padding);
-  padding: var(--card-padding);
-  background: var(--primary);
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.stats-title {
-  font-size: var(--font-body);
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: var(--card-margin);
-}
-
-.stats-bar-container {
-  height: 8px;
-  background: var(--secondary);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 4px;
-}
-
-.stats-bar {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.stats-bar-label {
-  font-size: var(--font-small);
-  color: var(--text-muted);
-  margin-bottom: var(--card-margin);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--card-margin);
-}
-
-.stats-item {
-  text-align: center;
-  padding: var(--card-margin);
-  background: var(--secondary);
-  border-radius: 6px;
-}
-
-.stats-value {
-  display: block;
-  font-size: var(--font-title);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.stats-label {
-  font-size: var(--font-small);
-  color: var(--text-muted);
-}
-
 /* Priority Dropdown (v0.4.1) */
 .priority-dropdown {
   position: relative;
@@ -1788,11 +1700,6 @@ h1, h2, h3, h4, h5, h6 {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -2113,11 +2020,6 @@ h1, h2, h3, h4, h5, h6 {
   animation: pulse 1s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
 .claude-conversation-status.idle {
   color: var(--slate);
 }
@@ -2125,8 +2027,6 @@ h1, h2, h3, h4, h5, h6 {
 .claude-conversation-status.error {
   color: var(--red);
 }
-  gap: 4px;
-  padding: 4px 10px;
   background: rgba(99, 102, 241, 0.1);
   border-bottom: 1px solid rgba(99, 102, 241, 0.2);
   font-size: var(--font-small);
@@ -3108,11 +3008,22 @@ function showToast(message, type = '') {
   }, 2000);
 }
 
+let _serverReachable = true;
+
 async function fetchAPI(endpoint, options = {}) {
   try {
     const res = await fetch(endpoint, options);
+    if (!res.ok && !_serverReachable) return null;
+    if (!_serverReachable) {
+      _serverReachable = true;
+      showToast('Server reconnected', 'success');
+    }
     return await res.json();
   } catch (e) {
+    if (_serverReachable) {
+      _serverReachable = false;
+      showToast('Server unreachable', 'error');
+    }
     console.error('API error:', e);
     return null;
   }
@@ -3306,21 +3217,29 @@ function updateSidebarAgentStats() {
 // Tab switching
 async function switchTab(tab) {
   currentTab = tab;
-  
+
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.tab === tab);
   });
-  
-  if (tab === 'opencode') {
-    await loadOpenCodeProjects();
-    await loadOpenCodeSessions();
-  }
 
-  if (tab === 'claudecode') {
-    await loadClaudeCodeSessions();
-  }
-
+  // Show content immediately with loading state
   renderContent();
+
+  // Then load data in background
+  try {
+    if (tab === 'opencode') {
+      await loadOpenCodeProjects();
+      await loadOpenCodeSessions();
+    }
+
+    if (tab === 'claudecode') {
+      await loadClaudeCodeSessions();
+    }
+
+    renderContent();
+  } catch (e) {
+    console.error('Tab load error:', e);
+  }
 }
 
 // Content rendering
@@ -3465,12 +3384,28 @@ function connectClaudeSSE(sessionId) {
       }
     }
 
+    // Save input state before render
+    const inputEl = document.getElementById('claudeInput');
+    const wasInputFocused = inputEl === document.activeElement;
+    const inputCursor = inputEl?.selectionStart;
+    const inputValue = inputEl?.value;
+
     // Check if at bottom before adding message
     const messagesEl = document.getElementById('claudeMessages');
     const wasAtBottom = messagesEl && (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 30;
 
     claudeSessionMessages.push(msg);
     renderContent();
+
+    // Restore input focus
+    if (wasInputFocused) {
+      const newInput = document.getElementById('claudeInput');
+      if (newInput) {
+        newInput.value = inputValue || '';
+        newInput.focus();
+        if (inputCursor) newInput.setSelectionRange(inputCursor, inputCursor);
+      }
+    }
 
     // Only scroll to bottom if was at bottom
     if (wasAtBottom) {
@@ -3509,19 +3444,15 @@ function connectClaudeSSE(sessionId) {
   });
 
   claudeEventSource.addEventListener('error', function(e) {
-    const data = e.data ? JSON.parse(e.data) : {};
-    // Update status
-    if (currentClaudeSession) {
-      currentClaudeSession.status = 'error';
-      currentClaudeSession.current_activity = data.error || 'Error';
-      renderContent();
-    }
-    showSmartNotification('Claude Error', {
-      body: data.error || 'Unknown error',
-      icon: '❌',
-      type: 'error',
-      important: true
-    });
+    // Only handle server-sent error events (with data), not native connection errors
+    if (!e.data) return;
+    try {
+      const data = JSON.parse(e.data);
+      if (currentClaudeSession && data.error) {
+        currentClaudeSession.current_activity = data.error;
+        renderContent();
+      }
+    } catch(ex) {}
   });
 
   claudeEventSource.addEventListener('retained_available', function(e) {
@@ -3535,16 +3466,32 @@ function connectClaudeSSE(sessionId) {
     }
   });
 
+  // SSE reconnection with exponential backoff
+  let sseRetryCount = 0;
+  const sseMaxRetries = 10;
+  let sseReconnecting = false;
+
   claudeEventSource.onerror = function() {
-    // Connection closed or error - try to reconnect
-    console.log('SSE connection error, reconnecting...');
-    if (currentClaudeSession) {
-      setTimeout(() => {
-        if (currentClaudeSession) {
-          connectClaudeSSE(currentClaudeSession.id);
-        }
-      }, 2000);
+    if (sseReconnecting || !currentClaudeSession) return;
+    sseReconnecting = true;
+    sseRetryCount++;
+
+    if (sseRetryCount > sseMaxRetries) {
+      console.log('SSE max retries reached');
+      sseReconnecting = false;
+      return;
     }
+
+    const delay = Math.min(2000 * Math.pow(2, sseRetryCount - 1), 30000);
+    console.log('SSE reconnect in ' + delay + 'ms (attempt ' + sseRetryCount + ')');
+
+    setTimeout(() => {
+      sseReconnecting = false;
+      if (currentClaudeSession) {
+        connectClaudeSSE(currentClaudeSession.id);
+        sseRetryCount = 0; // Reset on successful reconnect
+      }
+    }, delay);
   };
 }
 
@@ -3659,8 +3606,6 @@ function renderClaudeCode(container) {
   html += '</div>';
   container.innerHTML = html;
 }
-
-// No longer needed - removed toggle function
 
 function renderClaudeConversation(container) {
   const s = currentClaudeSession;
@@ -3836,31 +3781,6 @@ function renderClaudeMessage(msg) {
   return html;
 }
 
-// Parse code blocks from text
-function parseCodeBlocks(text) {
-  const blocks = [];
-  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
-  let lastIndex = 0;
-  let match;
-
-  while ((match = codeBlockRegex.exec(text)) !== null) {
-    // Add text before code block
-    if (match.index > lastIndex) {
-      blocks.push({ type: 'text', content: text.substring(lastIndex, match.index).trim() });
-    }
-    // Add code block
-    blocks.push({ type: 'code', lang: match[1] || 'code', content: match[2].trim() });
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Add remaining text
-  if (lastIndex < text.length) {
-    const remaining = text.substring(lastIndex).trim();
-    if (remaining) blocks.push({ type: 'text', content: remaining });
-  }
-
-  return blocks.length > 0 ? blocks : [{ type: 'text', content: text }];
-}
 
 async function selectClaudeSession(sessionId) {
   currentClaudeSession = claudeSessions.find(s => s.id === sessionId);
@@ -3994,13 +3914,42 @@ async function clearRetainedMessages() {
 }
 
 async function deleteClaudeSession(sessionId) {
-  if (!confirm('Delete this session?')) return;
+  showClaudeConfirmDialog(sessionId);
 
   const result = await fetchAPI('/api/claudecode/sessions/' + sessionId, { method: 'DELETE' });
 
   if (result?.success) {
     currentClaudeSession = null;
     claudeSessionMessages = [];
+    await loadClaudeCodeSessions();
+    renderContent();
+    showToast('Session deleted');
+  } else {
+    showToast('Failed to delete: ' + (result?.error || 'unknown error'), 'error');
+  }
+}
+
+function showClaudeConfirmDialog(sessionId) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-dialog-overlay visible';
+  overlay.id = 'claudeConfirmOverlay';
+  overlay.innerHTML =
+    '<div class="confirm-dialog"><div class="confirm-dialog-title">Delete Session?</div><div class="confirm-dialog-message">This will permanently delete this session and all messages.</div><div class="confirm-dialog-actions"><button class="confirm-dialog-btn cancel" onclick="closeClaudeConfirmDialog()">Cancel</button><button class="confirm-dialog-btn delete" onclick="executeClaudeDelete(\'' + sessionId + '\')">Delete</button></div></div>';
+  document.body.appendChild(overlay);
+}
+
+function closeClaudeConfirmDialog() {
+  const overlay = document.getElementById('claudeConfirmOverlay');
+  if (overlay) overlay.remove();
+}
+
+async function executeClaudeDelete(sessionId) {
+  closeClaudeConfirmDialog();
+  const result = await fetchAPI('/api/claudecode/sessions/' + sessionId, { method: 'DELETE' });
+  if (result?.success) {
+    currentClaudeSession = null;
+    claudeSessionMessages = [];
+    disconnectClaudeSSE();
     await loadClaudeCodeSessions();
     renderContent();
     showToast('Session deleted');
@@ -4191,23 +4140,18 @@ function formatClaudeDuration(seconds) {
   return hours + 'h ' + (mins % 60) + 'm';
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 // Tasks page
 function renderTasks(container) {
   if (tasksData.length === 0) {
     container.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No tasks found</div></div>';
     return;
   }
-  
-  // Two-row filter bar (v0.4.2: Toggle for completed tasks)
+
+  // Search bar + filters
+  const searchBar =
+    '<div class="task-search-bar">' +
+      '<input type="text" id="taskSearchInput" placeholder="Search tasks..." oninput="filterTasksBySearch(this.value)">' +
+    '</div>';
   const filters = 
     '<div class="filter-bar">' +
       '<div class="filter-row">' +
@@ -4228,7 +4172,7 @@ function renderTasks(container) {
     '</div>';
   
   const tasks = renderFilteredTasks();
-  container.innerHTML = filters + '<div id="taskList">' + tasks + '</div>';
+  container.innerHTML = searchBar + filters + '<div id="taskList">' + tasks + '</div>';
   
   // Filter button handlers
   container.querySelectorAll('.filter-btn').forEach(btn => {
@@ -4266,6 +4210,18 @@ function renderTasks(container) {
   }
 }
 
+let taskSearchQuery = '';
+
+function filterTasksBySearch(query) {
+  taskSearchQuery = query.toLowerCase().trim();
+  const taskList = document.getElementById('taskList');
+  if (taskList) {
+    taskList.innerHTML = renderFilteredTasks();
+    // Re-init swipe on new cards
+    taskList.querySelectorAll('.task-card').forEach(card => initSwipe(card));
+  }
+}
+
 function renderFilteredTasks() {
   // Filter parent tasks first
   const filteredParents = tasksData.filter(t => {
@@ -4277,9 +4233,14 @@ function renderFilteredTasks() {
     const statusMatch = currentStatusFilter === 'all' || t.status === currentStatusFilter;
     // Priority filter only applies to parent tasks
     const priorityMatch = currentPriorityFilter === 'all' || (t.priority || '待定') === currentPriorityFilter;
+    // Search filter
+    if (taskSearchQuery) {
+      const text = ((t.title || '') + ' ' + (t.description || '') + ' ' + (t.assignee || '')).toLowerCase();
+      if (!text.includes(taskSearchQuery)) return false;
+    }
     return statusMatch && priorityMatch;
   });
-  
+
   return filteredParents.map(t => renderTaskCard(t, true)).join('');
 }
 
@@ -4372,16 +4333,30 @@ function togglePriorityDropdown(badge, taskId, currentPriority) {
   }
   
   menu.classList.toggle('show');
-  
+
   // Close on outside click
   setTimeout(() => {
+    const menuRef = menu;
+    document.addEventListener('click', function closeDropdown(e) {
+      if (!badge.contains(e.target)) {
+        menuRef.classList.remove('show');
+        document.removeEventListener('click', closeDropdown);
+      }
+    });
+  }, 10);
+}
+
+// Close dropdowns on scroll
+document.getElementById('mainContent')?.addEventListener('scroll', function() {
+  document.querySelectorAll('.priority-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+});
 
 // Swipe-to-delete functionality
 let swipeState = { activeCard: null, startX: 0, currentX: 0, threshold: 70 };
 
 function initSwipe(card) {
   card.addEventListener('touchstart', handleTouchStart, { passive: true });
-  card.addEventListener('touchmove', handleTouchMove, { passive: true });
+  card.addEventListener('touchmove', handleTouchMove);
   card.addEventListener('touchend', handleTouchEnd);
   card.addEventListener('click', handleClickDuringSwipe);
 }
@@ -4705,16 +4680,6 @@ async function sendNotify(taskId) {
   }
 }
 
-// Placeholder pages
-function renderComingSoon(container, name) {
-  container.innerHTML = '<div class="coming-soon">' +
-    '<div class="coming-soon-icon">🚧</div>' +
-    '<div class="coming-soon-title">Coming Soon</div>' +
-    '<div class="coming-soon-text">' + name + ' 功能将在下一版本中推出</div>' +
-  '</div>';
-}
-
-
 // Execute Modal Functions
 let executeModalState = { taskId: null, selectedAgent: null, selectedType: null };
 
@@ -4843,90 +4808,9 @@ async function confirmExecute() {
 }
 
 
-// Stats page (Phase 2)
-async function renderStats(container) {
-  const data = await fetchAPI('/api/stats');
-
-  if (!data) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-text">无法加载统计</div></div>';
-    return;
-  }
-
-  const agents = data.agents || {};
-  const tasks = data.tasks || {};
-  const sessions = data.sessions || {};
-
-  // Agent utilization bar
-  const utilization = agents.utilizationPercent || 0;
-  const utilColor = utilization >= 75 ? 'var(--green)' : utilization >= 50 ? 'var(--yellow)' : 'var(--slate)';
-
-  container.innerHTML =
-    '<div class="stats-section">' +
-      '<div class="stats-title">🤖 Agent Utilization</div>' +
-      '<div class="stats-bar-container">' +
-        '<div class="stats-bar" style="width:' + utilization + '%;background:' + utilColor + '"></div>' +
-      '</div>' +
-      '<div class="stats-bar-label">' + utilization + '% utilized</div>' +
-      '<div class="stats-grid">' +
-        '<div class="stats-item"><span class="stats-value" style="color:var(--green)">' + (agents.online || 0) + '</span><span class="stats-label">Online</span></div>' +
-        '<div class="stats-item"><span class="stats-value" style="color:var(--yellow)">' + (agents.busy || 0) + '</span><span class="stats-label">Busy</span></div>' +
-        '<div class="stats-item"><span class="stats-value" style="color:var(--indigo)">' + (agents.idle || 0) + '</span><span class="stats-label">Idle</span></div>' +
-        '<div class="stats-item"><span class="stats-value" style="color:var(--slate)">' + (agents.offline || 0) + '</span><span class="stats-label">Offline</span></div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="stats-section">' +
-      '<div class="stats-title">📋 Task Progress</div>' +
-      '<div class="stats-bar-container">' +
-        '<div class="stats-bar" style="width:' + (tasks.completionRate || 0) + '%;background:var(--accent)"></div>' +
-      '</div>' +
-      '<div class="stats-bar-label">' + (tasks.completionRate || 0) + '% complete</div>' +
-      '<div class="stats-grid">' +
-        '<div class="stats-item"><span class="stats-value">' + (tasks.total || 0) + '</span><span class="stats-label">Total</span></div>' +
-        '<div class="stats-item"><span class="stats-value" style="color:var(--green)">' + (tasks.completed || 0) + '</span><span class="stats-label">Completed</span></div>' +
-        '<div class="stats-item"><span class="stats-value" style="color:var(--yellow)">' + (tasks.inProgress || 0) + '</span><span class="stats-label">In Progress</span></div>' +
-        '<div class="stats-item"><span class="stats-value" style="color:var(--slate)">' + (tasks.pending || 0) + '</span><span class="stats-label">Pending</span></div>' +
-      '</div>' +
-    '</div>' +
-    '<div class="stats-section">' +
-      '<div class="stats-title">💬 Session Activity (24h)</div>' +
-      '<div class="stats-grid">' +
-        '<div class="stats-item"><span class="stats-value">' + (sessions.active24h || 0) + '</span><span class="stats-label">Active</span></div>' +
-        '<div class="stats-item"><span class="stats-value">' + (sessions.feishu || 0) + '</span><span class="stats-label">Feishu</span></div>' +
-        '<div class="stats-item"><span class="stats-value">' + (sessions.webchat || 0) + '</span><span class="stats-label">WebChat</span></div>' +
-      '</div>' +
-    '</div>';
-}
-
-
-async function renderConfig(container) {
-  const data = await fetchAPI('/api/config');
-  
-  if (!data) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-text">无法加载配置</div></div>';
-    return;
-  }
-  
-  container.innerHTML = 
-    '<div class="config-section">' +
-      '<div class="config-title">Dashboard</div>' +
-      '<div class="config-item"><span class="config-label">Name</span><span class="config-value">' + (data.dashboard?.name || '-') + '</span></div>' +
-      '<div class="config-item"><span class="config-label">Port</span><span class="config-value">' + (data.dashboard?.port || '-') + '</span></div>' +
-      '<div class="config-item"><span class="config-label">Refresh</span><span class="config-value">' + (data.dashboard?.refreshInterval || 60) + 's</span></div>' +
-    '</div>' +
-    '<div class="config-section">' +
-      '<div class="config-title">Gateway</div>' +
-      '<div class="config-item"><span class="config-label">Port</span><span class="config-value">' + (data.gateway?.port || '-') + '</span></div>' +
-      '<div class="config-item"><span class="config-label">Status</span><span class="config-value">' + (data.gateway?.healthy ? '✓ Healthy' : '✗ Offline') + '</span></div>' +
-    '</div>' +
-    '<div class="config-section">' +
-      '<div class="config-title">Status Thresholds</div>' +
-      '<div class="config-item"><span class="config-label">Busy</span><span class="config-value">' + (data.status?.busyThresholdSeconds || 30) + 's</span></div>' +
-      '<div class="config-item"><span class="config-label">Idle</span><span class="config-value">' + (data.status?.idleThresholdMinutes || 5) + 'min</span></div>' +
-    '</div>';
-}
-
 function escapeHtml(s) {
   if (!s) return '';
+  s = String(s).replace(/\x1b\[[0-9;]*m/g, '');  // Strip ANSI escape codes
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
@@ -5411,8 +5295,27 @@ function showBatchStatusMenu() {
 
 function applyBatchStatus(status) {
   if (selectedTaskIds.size === 0) return;
-  setStatusBatch(Array.from(selectedTaskIds), status);
+  applyBatchStatusRequest(Array.from(selectedTaskIds), status);
   exitBatchSelectionMode();
+}
+
+async function applyBatchStatusRequest(taskIds, status) {
+  try {
+    const res = await fetch('/api/tasks/status/batch', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskIds, status })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(taskIds.length + ' tasks updated', 'success');
+    } else {
+      showToast('Failed: ' + (data.error || 'unknown'), 'error');
+    }
+  } catch (e) {
+    showToast('Network error', 'error');
+  }
+  await refreshData(true);
 }
 
 // Initialize batch selection on page load
