@@ -149,3 +149,16 @@ Key documents in `docs/`:
 | GET | `/api/opencode/projects` | OpenCode project config |
 | GET | `/api/session-state` | Current openclaw session state |
 | GET | `/api/assignees` | Available assignees (humans + agents) |
+
+## Dashboard → Terminal Messages
+Dashboard users can send messages to terminal Claude sessions. These are stored in `/tmp/claude-pending-*.jsonl`. **At the start of every conversation, check for pending messages:**
+```bash
+python3 -c "import json,time,glob
+for f in sorted(glob.glob('/tmp/claude-pending-*.jsonl')):
+    with open(f) as fh:
+        for l in fh:
+            if l.strip():
+                d=json.loads(l); ago=int(time.time()-d['sent_at'])
+                print(f'[{ago//3600}h{(ago%3600)//60}m ago] {d[\"content\"]}')" 2>/dev/null
+```
+After responding, clear: `rm /tmp/claude-pending-*.jsonl`
