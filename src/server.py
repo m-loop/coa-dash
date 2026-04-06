@@ -741,7 +741,6 @@ def inject_to_terminal(session_id, content):
             with open(stdin_link, "w") as f:
                 f.write(content + "\n")
             return True, f"Injected to {stdin_link} (newest)"
-            return True, f"Injected to {stdin_link} (newest)"
 
         return False, "Could not find Claude terminal"
     except Exception as e:
@@ -2333,6 +2332,7 @@ class COADashHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(e)}, 400)
         elif re.match(r"/api/claudecode/sessions/([^/]+)/message$", path):
             session_id = re.match(r"/api/claudecode/sessions/([^/]+)/message$", path).group(1)
+            t0 = time.time()
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length).decode("utf-8")
             try:
@@ -2342,6 +2342,8 @@ class COADashHandler(BaseHTTPRequestHandler):
                     self.send_json({"error": "Content required"}, 400)
                 else:
                     result = send_claude_message(session_id, content)
+                    elapsed = time.time() - t0
+                    print(f"[message] {session_id} \"{content[:40]}\" -> {result.get('message','')} ({elapsed:.2f}s)")
                     if "error" in result:
                         self.send_json(result, 400)
                     else:

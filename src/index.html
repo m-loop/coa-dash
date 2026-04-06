@@ -3012,7 +3012,12 @@ let _serverReachable = true;
 
 async function fetchAPI(endpoint, options = {}) {
   try {
+    // Add 15s timeout for all requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    options.signal = controller.signal;
     const res = await fetch(endpoint, options);
+    clearTimeout(timeoutId);
     if (!res.ok && !_serverReachable) return null;
     if (!_serverReachable) {
       _serverReachable = true;
@@ -3854,14 +3859,14 @@ async function sendClaudeMessage() {
 
   input.value = '';
 
-  // Set status to working immediately for visual feedback
-  currentClaudeSession.status = 'working';
-  currentClaudeSession.current_activity = 'Sending message...';
-  renderContent();
-
-  // Add user message to UI immediately with dashboard source
+  // Add user message to UI immediately (incremental, no full rebuild)
   claudeSessionMessages.push({ type: 'user', content: content, source: 'dashboard' });
-  renderContent();
+  appendClaudeMessage({ type: 'user', content: content, source: 'dashboard' });
+
+  // Update status indicator only (no DOM rebuild)
+  currentClaudeSession.status = 'working';
+  currentClaudeSession.current_activity = 'Sending...';
+  updateClaudeStatusUI();
 
   // Scroll to bottom
   const messagesEl = document.getElementById('claudeMessages');
