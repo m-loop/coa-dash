@@ -674,6 +674,55 @@ def is_terminal_busy(session):
         return time.time() - mtime < 5
     return False
 
+def inject_to_terminal(session_id, content):
+    """Inject message directly into Claude Code's terminal via /dev/pts/X"""
+    with claude_sessions_lock:
+        session = claude_sessions.get(session_id)
+    if not session or not session.claude_session_id:
+        return False, "No linked terminal session"
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "claude"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode != 0:
+            return False, "No Claude process found"
+        pids = result.stdout.strip().split("\n")
+        for pid in pids:
+            pid = pid.strip()
+            if not pid:
+                continue
+            try:
+                stdin_link = os.readlink(f"/proc/{pid}/fd/0")
+                if not stdin_link.startswith("/dev/pts/"):
+                    continue
+                try:
+                    cwd_link = os.readlink(f"/proc/{pid}/cwd")
+                    if session.cwd and session.cwd in cwd_link:
+                        with open(stdin_link, "w") as f:
+                            f.write(content + "\n")
+                        return True, f"Injected to {stdin_link}"
+                except Exception:
+                    pass
+            except Exception:
+                pass
+        # Fallback: no CWD match, try first Claude pts
+        for pid in pids:
+            pid = pid.strip()
+            if not pid:
+                continue
+            try:
+                stdin_link = os.readlink(f"/proc/{pid}/fd/0")
+                if stdin_link.startswith("/dev/pts/"):
+                    with open(stdin_link, "w") as f:
+                        f.write(content + "\n")
+                    return True, f"Injected to {stdin_link} (fallback)"
+            except Exception:
+                pass
+        return False, "Could not find Claude terminal"
+    except Exception as e:
+        return False, str(e)
+
 def write_notification_file(session_id, content):
     """Write dashboard input to notification file for terminal display"""
     pending_file = f"/tmp/claude-pending-{session_id}.jsonl"
@@ -734,7 +783,7 @@ def check_terminal_idle_and_alert(session_id):
 
 
 def send_claude_message(session_id, content):
-    """Send message to session, retain if terminal busy"""
+    """Send message to session, inject or retain if terminal linked"""
     with claude_sessions_lock:
         session = claude_sessions.get(session_id)
         if not session:
@@ -743,14 +792,22 @@ def send_claude_message(session_id, content):
         if session.status not in ["idle", "starting"]:
             return {"error": f"Dashboard busy (status: {session.status})"}
 
-        # If linked to a Claude terminal session, always retain
-        # (can't spawn second Claude process against same session)
-        if session.claude_session_id:
-            return retain_message(session_id, content)
+        has_claude_link = bool(session.claude_session_id)
 
-        # Dashboard-only session: send directly via Claude CLI
-        session.status = "working"
-        session.current_activity = "Sending..."
+    # Outside lock: inject_to_terminal acquires its own lock
+    if has_claude_link:
+        success, msg = inject_to_terminal(session_id, content)
+        if success:
+            return {"success": True, "message": msg, "injected": True}
+        # Injection failed - fall back to retain
+        return retain_message(session_id, content)
+
+    # Dashboard-only session: send directly via Claude CLI
+    with claude_sessions_lock:
+        session = claude_sessions.get(session_id)
+        if session:
+            session.status = "working"
+            session.current_activity = "Sending..."
 
     success = session.send_message_async(content)
     if success:

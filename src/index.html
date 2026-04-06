@@ -3879,16 +3879,17 @@ async function sendClaudeMessage() {
     currentClaudeSession.status = 'error';
     currentClaudeSession.current_activity = result.error;
     renderContent();
+  } else if (result?.injected) {
+    showToast('Injected to terminal', 'success');
+    currentClaudeSession.current_activity = 'Sent to terminal';
+    updateClaudeStatusUI();
   } else if (result?.retained) {
-    // Message written to terminal session's pending file
-    showToast('Message sent to terminal', 'success');
-    currentClaudeSession.current_activity = 'Message delivered to terminal';
-    renderContent();
-    renderContent();
+    showToast('Terminal busy - message retained', 'success');
+    currentClaudeSession.current_activity = 'Message retained';
+    updateClaudeStatusUI();
   } else {
-    // Update activity indicator
     currentClaudeSession.current_activity = 'Claude is thinking...';
-    renderContent();
+    updateClaudeStatusUI();
   }
 }
 
