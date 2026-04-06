@@ -675,11 +675,20 @@ def is_terminal_busy(session):
     return False
 
 def inject_to_terminal(session_id, content):
-    """Inject message directly into Claude Code's terminal via /dev/pts/X"""
+    """Inject message directly into Claude Code's terminal via /dev/pts/X
+
+    Matching strategy (in priority order):
+    1. Find PID that exclusively owns the session file (has fd pointing to it)
+    2. Use most recently started Claude process (newest = most likely active)
+    """
     with claude_sessions_lock:
         session = claude_sessions.get(session_id)
     if not session or not session.claude_session_id:
         return False, "No linked terminal session"
+
+    # Get the session file path
+    claude_file = get_claude_file_path(session.cwd, session.claude_session_id)
+
     try:
         result = subprocess.run(
             ["pgrep", "-f", "claude"],
@@ -687,38 +696,53 @@ def inject_to_terminal(session_id, content):
         )
         if result.returncode != 0:
             return False, "No Claude process found"
-        pids = result.stdout.strip().split("\n")
+        pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+
+        # Strategy 1: Find PID that has the session JSONL file open exclusively
+        session_pids = []
         for pid in pids:
-            pid = pid.strip()
-            if not pid:
-                continue
             try:
-                stdin_link = os.readlink(f"/proc/{pid}/fd/0")
-                if not stdin_link.startswith("/dev/pts/"):
-                    continue
-                try:
-                    cwd_link = os.readlink(f"/proc/{pid}/cwd")
-                    if session.cwd and session.cwd in cwd_link:
-                        with open(stdin_link, "w") as f:
-                            f.write(content + "\n")
-                        return True, f"Injected to {stdin_link}"
-                except Exception:
-                    pass
+                fd_dir = f"/proc/{pid}/fd"
+                for fd_name in os.listdir(fd_dir):
+                    try:
+                        link = os.readlink(f"{fd_dir}/{fd_name}")
+                        if claude_file in link:
+                            session_pids.append(pid)
+                            break
+                    except Exception:
+                        pass
             except Exception:
                 pass
-        # Fallback: no CWD match, try first Claude pts
+
+        if len(session_pids) == 1:
+            # Only one process owns this session - exact match
+            pid = session_pids[0]
+            stdin_link = os.readlink(f"/proc/{pid}/fd/0")
+            if stdin_link.startswith("/dev/pts/"):
+                with open(stdin_link, "w") as f:
+                    f.write(content + "\n")
+                return True, f"Injected to {stdin_link} (session match)"
+
+        # Strategy 2: Use newest Claude process
+        newest_pid = None
+        newest_time = 0
         for pid in pids:
-            pid = pid.strip()
-            if not pid:
-                continue
             try:
-                stdin_link = os.readlink(f"/proc/{pid}/fd/0")
-                if stdin_link.startswith("/dev/pts/"):
-                    with open(stdin_link, "w") as f:
-                        f.write(content + "\n")
-                    return True, f"Injected to {stdin_link} (fallback)"
+                start_time = os.stat(f"/proc/{pid}").st_ctime
+                if start_time > newest_time:
+                    stdin_link = os.readlink(f"/proc/{pid}/fd/0")
+                    if stdin_link.startswith("/dev/pts/"):
+                        newest_time = start_time
+                        newest_pid = pid
             except Exception:
                 pass
+        if newest_pid:
+            stdin_link = os.readlink(f"/proc/{newest_pid}/fd/0")
+            with open(stdin_link, "w") as f:
+                f.write(content + "\n")
+            return True, f"Injected to {stdin_link} (newest)"
+            return True, f"Injected to {stdin_link} (newest)"
+
         return False, "Could not find Claude terminal"
     except Exception as e:
         return False, str(e)
