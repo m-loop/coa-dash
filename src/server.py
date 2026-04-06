@@ -629,17 +629,17 @@ def get_claude_session_history(session_id, limit=50):
                 except Exception as e:
                     print(f"[WARN] Failed to read Claude session file: {e}")
 
-        # Fallback to buffer file
-        if not history and os.path.exists(session.buffer_file):
+        # Also read dashboard buffer file (contains injected messages)
+        if os.path.exists(session.buffer_file):
             try:
                 with open(session.buffer_file, "r") as f:
-                    lines = f.readlines()[-limit:]
-                    for line in lines:
-                        if line.strip():
-                            try:
-                                history.append(json.loads(line.strip()))
-                            except Exception:
-                                pass
+                    buf_lines = f.readlines()
+                for line in buf_lines:
+                    if line.strip():
+                        try:
+                            history.append(json.loads(line.strip()))
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
@@ -805,6 +805,28 @@ def check_terminal_idle_and_alert(session_id):
                 })
 
 
+def _persist_dashboard_message(session_id, content):
+    """Write dashboard-sent message to session buffer for persistence across page reloads"""
+    with claude_sessions_lock:
+        session = claude_sessions.get(session_id)
+    if not session:
+        return
+    entry = {
+        "type": "user",
+        "source": "dashboard",
+        "message": {"role": "user", "content": content},
+        "content": content,
+        "timestamp": time.time()
+    }
+    try:
+        with open(session.buffer_file, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+    # Also add to in-memory messages
+    session.messages.append(entry)
+
+
 def send_claude_message(session_id, content):
     """Send message to session, inject or retain if terminal linked"""
     with claude_sessions_lock:
@@ -821,6 +843,8 @@ def send_claude_message(session_id, content):
     if has_claude_link:
         success, msg = inject_to_terminal(session_id, content)
         if success:
+            # Persist dashboard message to buffer so it survives page reload
+            _persist_dashboard_message(session_id, content)
             return {"success": True, "message": msg, "injected": True}
         # Injection failed - fall back to retain
         return retain_message(session_id, content)
