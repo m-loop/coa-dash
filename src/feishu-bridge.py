@@ -1,0 +1,796 @@
+#!/usr/bin/env python3
+"""
+Feishu-Claude Bridge Service
+
+Bridges Feishu chats with Claude Code sessions via coa-dash API.
+
+Modes:
+  dm     - User DMs the bot, bot forwards to a linked Claude session
+  topic  - 话题群 mode, each topic = 1 session (future)
+
+Commands (in any mode):
+  /link <session-id>  - Link this chat to a Claude session
+  /unlink             - Remove link
+  /list               - Show all mappings
+  /status             - Show session status
+  /sessions           - List available Claude Code sessions
+  /help               - Show this help
+"""
+
+import json
+import os
+import sys
+import time
+import threading
+import traceback
+from datetime import datetime
+
+import requests
+from lark_oapi import Client
+from lark_oapi.core.enum import LogLevel
+from lark_oapi.event.dispatcher_handler import EventDispatcherHandler
+from lark_oapi.ws.client import Client as WsClient
+from lark_oapi.api.im.v1 import (
+    CreateMessageRequest,
+    CreateMessageRequestBody,
+    CreateMessageReactionRequest,
+    CreateMessageReactionRequestBody,
+    DeleteMessageReactionRequest,
+)
+
+# ── Config paths ──────────────────────────────────────────────────────
+
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_PATH = os.path.join(_BASE_DIR, "config", "feishu-bridge.json")
+PERSIST_PATH = os.path.join(_BASE_DIR, "config", "feishu-persistence.json")
+
+
+class FeishuBridge:
+    """Bridge between Feishu chats and Claude Code sessions"""
+
+    def __init__(self):
+        self._lark_client = None
+        self._ws_client = None
+        self._app_id = ""
+        self._app_secret = ""
+        self._mode = "dm"  # "dm" or "topic"
+        self._topic_group_id = ""
+        self._coa_dash_url = "http://localhost:8890"
+        # chat_id -> session_id (DM mode) or root_id -> session_id (topic mode)
+        self._chat_session_map = {}
+        self._session_chat_map = {}  # reverse: session_id -> chat_id
+        self._event_dispatcher = None
+        self._lock = threading.Lock()
+        self._last_poll_time = {}
+        self._poll_threads = {}
+        self._poll_stop = {}
+        self._pending_reactions = {}  # session_id -> msg_id (to add reactions to)
+        self._current_reactions = {}  # session_id -> reaction_id (current status reaction)
+        self._forward_baselines = {}  # session_id -> message count at forward time
+        self._running = False
+
+        self._load_config()
+        self._load_persistence()
+
+    # ── Config / Persistence ──────────────────────────────────────────
+
+    def _load_config(self):
+        try:
+            with open(CONFIG_PATH, "r") as f:
+                config = json.load(f)
+            self._app_id = config.get("app_id", "")
+            self._app_secret = config.get("app_secret", "")
+            self._mode = config.get("mode", "dm")
+            self._topic_group_id = config.get("topic_group_id", "")
+            self._coa_dash_url = config.get("coa_dash_url", "http://localhost:8890")
+            self._chat_session_map = config.get("chat_session_map", {})
+            if self._mode == "topic":
+                self._chat_session_map = config.get("session_topic_map", {})
+            self._session_chat_map = {v: k for k, v in self._chat_session_map.items()}
+        except FileNotFoundError:
+            print(f"[WARN] Config not found: {CONFIG_PATH}")
+        except Exception as e:
+            print(f"[WARN] Config load failed: {e}")
+
+    def _load_persistence(self):
+        try:
+            with open(PERSIST_PATH, "r") as f:
+                data = json.load(f)
+            self._chat_session_map.update(data.get("chat_session_map", {}))
+            self._session_chat_map = {v: k for k, v in self._chat_session_map.items()}
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"[WARN] Persistence load failed: {e}")
+
+    def _save_persistence(self):
+        with self._lock:
+            try:
+                with open(PERSIST_PATH, "w") as f:
+                    json.dump({
+                        "chat_session_map": self._chat_session_map,
+                        "mode": self._mode,
+                        "last_saved": datetime.now().isoformat(),
+                    }, f, indent=2)
+            except Exception as e:
+                print(f"[WARN] Persistence save failed: {e}")
+
+    # ── Client Init ───────────────────────────────────────────────────
+
+    def _init_clients(self):
+        self._lark_client = (
+            Client.builder()
+            .app_id(self._app_id)
+            .app_secret(self._app_secret)
+            .log_level(LogLevel.INFO)
+            .build()
+        )
+
+        self._event_dispatcher = (
+            EventDispatcherHandler
+            .builder("", "")  # encrypt_key, verification_token (empty for WS)
+            .register_p2_im_message_receive_v1(self._on_message_receive)
+            .build()
+        )
+
+        self._ws_client = WsClient(
+            app_id=self._app_id,
+            app_secret=self._app_secret,
+            event_handler=self._event_dispatcher,
+            domain="https://open.feishu.cn",
+            auto_reconnect=True,
+            log_level=LogLevel.INFO,
+        )
+
+        print(f"[Bridge] mode={self._mode}  app={self._app_id[:8]}  mappings={len(self._chat_session_map)}")
+
+    # ── Start / Stop ──────────────────────────────────────────────────
+
+    def start(self):
+        if not self._app_id or not self._app_secret:
+            print("ERROR: app_id and app_secret required in config")
+            sys.exit(1)
+
+        self._init_clients()
+
+        # Resume polling for existing mappings
+        for session_id in self._session_chat_map:
+            self._start_poll(session_id)
+
+        self._running = True
+        print(f"[Bridge] Starting (mode={self._mode})...")
+        try:
+            self._ws_client.start()
+        except KeyboardInterrupt:
+            self.stop()
+            sys.exit(0)
+
+    def stop(self):
+        self._running = False
+        for session_id in list(self._poll_threads.keys()):
+            self._stop_poll(session_id)
+        if self._ws_client:
+            self._ws_client.stop()
+        self._save_persistence()
+        print("[Bridge] Stopped")
+
+    # ── Message Handler ───────────────────────────────────────────────
+
+    def _on_message_receive(self, ctx):
+        """Handle incoming Feishu message event."""
+        try:
+            sender = ctx.event.sender
+            msg = ctx.event.message
+
+            # Ignore bot's own messages
+            if sender.sender_type == "app":
+                return
+
+            chat_id = msg.chat_id or ""
+            chat_type = msg.chat_type or ""
+            msg_type = msg.message_type or ""
+            content_str = msg.content or ""
+            msg_id = msg.message_id or ""
+
+            text = self._extract_text(content_str, msg_type)
+            if not text:
+                return
+
+            print(f"[MSG] {chat_type} chat={chat_id[:8]}... text={text[:60]}")
+
+            # DM and group chats both use chat_id as lookup key
+            lookup_key = chat_id
+
+            # Handle commands
+            if text.startswith("/"):
+                self._handle_command(text, lookup_key, chat_id)
+                return
+
+            # Find linked session
+            session_id = self._chat_session_map.get(lookup_key)
+            if not session_id:
+                self._send_text(chat_id, "No Claude session linked. Use /link <session-id> or /new <name> to connect.")
+                return
+
+            # Forward to Claude
+            rid = self._add_reaction(msg_id, "Typing")  # ⌨️ received
+            self._pending_reactions[session_id] = msg_id
+            if rid:
+                self._current_reactions[session_id] = rid  # Track for replacement
+            self._forward_to_claude(session_id, text, chat_id, msg_id)
+
+        except Exception as e:
+            print(f"[ERROR] Message handler failed: {e}")
+            traceback.print_exc()
+
+    def _extract_text(self, content_str, msg_type):
+        try:
+            data = json.loads(content_str) if isinstance(content_str, str) else content_str
+        except (json.JSONDecodeError, TypeError):
+            return ""
+
+        if msg_type == "text":
+            return data.get("text", "").strip()
+        elif msg_type == "post":
+            texts = []
+            content = data.get("content", [])
+            for block in (content if isinstance(content, list) else [content]):
+                for el in (block if isinstance(block, list) else [block]):
+                    if isinstance(el, dict):
+                        texts.append(el.get("text", ""))
+                    elif isinstance(el, str):
+                        texts.append(el)
+            return " ".join(texts).strip()
+        return ""
+
+    # ── Commands ──────────────────────────────────────────────────────
+
+    def _handle_command(self, text, lookup_key, chat_id):
+        parts = text.split(None, 1)
+        command = parts[0].lower()
+        args = parts[1].strip() if len(parts) > 1 else ""
+
+        if command == "/link":
+            self._cmd_link(args, lookup_key, chat_id)
+        elif command == "/new":
+            self._cmd_new(args, lookup_key, chat_id)
+        elif command == "/unlink":
+            self._cmd_unlink(lookup_key, chat_id)
+        elif command == "/list":
+            self._cmd_list(chat_id)
+        elif command == "/status":
+            self._cmd_status(lookup_key, chat_id)
+        elif command == "/sessions":
+            self._cmd_sessions(chat_id)
+        elif command == "/stop":
+            self._cmd_stop(lookup_key, chat_id)
+        elif command == "/help":
+            self._send_text(chat_id,
+                "Claude Bridge Commands:\n\n"
+                "/new <project> [cwd] - Create session (auto-mkdir + git init)\n"
+                "/link <id> - Link chat to existing session\n"
+                "/unlink - Remove link\n"
+                "/stop - Stop current session task\n"
+                "/list - Show all mappings\n"
+                "/status - Current session status\n"
+                "/sessions - List available sessions\n"
+                "/help - This message"
+            )
+        else:
+            self._send_text(chat_id, "Unknown command. Try /help")
+
+    def _cmd_link(self, session_id, lookup_key, chat_id):
+        if not session_id:
+            self._send_text(chat_id, "Usage: /link <session-id>")
+            return
+
+        info = self._get_session_info(session_id)
+        if not info:
+            # Try matching by ID prefix, project name, or title
+            sessions = self._get_available_sessions()
+            matches = [s for s in sessions
+                       if s["id"].startswith(session_id)
+                       or s.get("shortId", "").startswith(session_id)
+                       or s.get("projectName", "").lower() == session_id.lower()
+                       or s.get("name", "").lower() == session_id.lower()
+                       or s.get("title", "").lower().startswith(session_id.lower())]
+            if matches:
+                # Pick the most recent session
+                matches.sort(key=lambda s: s.get("startedAt", 0), reverse=True)
+                session_id = matches[0]["id"]
+                info = self._get_session_info(session_id)
+            else:
+                self._send_text(chat_id, f"Session `{session_id}` not found. Try /sessions")
+                return
+
+        # Remove old mapping if this chat was linked to something else
+        old_session = self._chat_session_map.get(lookup_key)
+        if old_session and old_session != session_id:
+            self._stop_poll(old_session)
+
+        self._chat_session_map[lookup_key] = session_id
+        self._session_chat_map[session_id] = lookup_key
+        self._save_persistence()
+        self._start_poll(session_id)
+
+        name = info.get("title", info.get("name", session_id[:8])) if info else session_id[:8]
+        self._send_text(chat_id, f"✅ Linked to: {name}")
+
+    def _cmd_new(self, args, lookup_key, chat_id):
+        """Create a new Claude session and link this chat to it"""
+        parts = args.split()
+        if not parts:
+            self._send_text(chat_id,
+                "Usage:\n"
+                "/new <project-name> - Create session (auto-mkdir)\n"
+                "/new <name> <path>  - Create session with custom cwd")
+            return
+
+        project_name = parts[0]
+        cwd = parts[1] if len(parts) > 1 else f"/home/aegis/vault/projects/{project_name}"
+
+        # Auto-create project directory if not exists
+        created = False
+        if not os.path.isdir(cwd):
+            try:
+                os.makedirs(cwd, exist_ok=True)
+                created = True
+                # Init git repo for new projects (safe: project_name is alphanumeric)
+                import subprocess
+                subprocess.run(["git", "init", "-q"], cwd=cwd,
+                               capture_output=True, timeout=5)
+            except OSError as e:
+                self._send_text(chat_id, f"⚠️ Cannot create dir {cwd}: {e}")
+                return
+
+        try:
+            resp = requests.post(
+                f"{self._coa_dash_url}/api/claudecode/sessions",
+                json={"name": project_name, "cwd": cwd},
+                headers={"Content-Type": "application/json"},
+                timeout=10,
+            )
+            result = resp.json()
+            if not result.get("success"):
+                self._send_text(chat_id, f"⚠️ Create failed: {result.get('error', 'unknown')}")
+                return
+
+            session = result.get("session", {})
+            session_id = session.get("id", "")
+
+            # Auto-link
+            old_session = self._chat_session_map.get(lookup_key)
+            if old_session and old_session != session_id:
+                self._stop_poll(old_session)
+
+            self._chat_session_map[lookup_key] = session_id
+            self._session_chat_map[session_id] = lookup_key
+            self._save_persistence()
+            self._start_poll(session_id)
+
+            dir_info = f"📁 Created {cwd}" if created else f"📂 {cwd}"
+            self._send_text(chat_id, f"✅ Created & linked: {project_name}\n{dir_info}\nSession: {session_id}\nSend a message to start!")
+        except Exception as e:
+            self._send_text(chat_id, f"⚠️ Error: {e}")
+
+    def _cmd_unlink(self, lookup_key, chat_id):
+        session_id = self._chat_session_map.get(lookup_key)
+        if session_id:
+            del self._chat_session_map[lookup_key]
+            if session_id in self._session_chat_map:
+                del self._session_chat_map[session_id]
+            self._stop_poll(session_id)
+            self._save_persistence()
+            self._send_text(chat_id, "✅ Unlinked")
+        else:
+            self._send_text(chat_id, "No linked session.")
+
+    def _cmd_stop(self, lookup_key, chat_id):
+        session_id = self._chat_session_map.get(lookup_key)
+        if not session_id:
+            self._send_text(chat_id, "No linked session.")
+            return
+        # Kill any running claude process for this session
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", f"claude.*--resume.*{session_id}"],
+                capture_output=True, text=True, timeout=3
+            )
+            pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+            if pids:
+                for pid in pids:
+                    subprocess.run(["kill", pid], timeout=3)
+                self._send_text(chat_id, f"⛔ Stopped (killed {len(pids)} process(es))")
+            else:
+                # Also try killing by buffer file
+                result2 = subprocess.run(
+                    ["pgrep", "-f", f"claude-session-{session_id}"],
+                    capture_output=True, text=True, timeout=3
+                )
+                pids2 = [p.strip() for p in result2.stdout.strip().split("\n") if p.strip()]
+                if pids2:
+                    for pid in pids2:
+                        subprocess.run(["kill", pid], timeout=3)
+                    self._send_text(chat_id, f"⛔ Stopped (killed {len(pids2)} process(es))")
+                else:
+                    self._send_text(chat_id, "No active process found. Session may already be idle.")
+        except Exception as e:
+            self._send_text(chat_id, f"⚠️ Stop failed: {e}")
+
+    def _cmd_list(self, chat_id):
+        lines = ["Active Mappings:"]
+        for key, sid in self._chat_session_map.items():
+            info = self._get_session_info(sid)
+            name = info.get("title", sid[:8]) if info else sid[:8]
+            lines.append(f"  - {name} (chat {key[:8]}...)")
+        if not self._chat_session_map:
+            lines.append("  None. Use /link <session-id>")
+        self._send_text(chat_id, "\n".join(lines))
+
+    def _cmd_status(self, lookup_key, chat_id):
+        session_id = self._chat_session_map.get(lookup_key)
+        if not session_id:
+            self._send_text(chat_id, "No session linked. Use /link <session-id>")
+            return
+        info = self._get_session_info(session_id)
+        if info:
+            self._send_text(chat_id,
+                f"Session: {info.get('title', session_id[:8])}\n"
+                f"Status: {info.get('status', '?')}\n"
+                f"Duration: {info.get('duration', '?')}s\n"
+                f"Messages: {info.get('messageCount', '?')}"
+            )
+        else:
+            self._send_text(chat_id, "Session not found (may have been deleted)")
+
+    def _cmd_sessions(self, chat_id):
+        try:
+            sessions = self._get_available_sessions()
+            if not sessions:
+                self._send_text(chat_id, "No sessions. Create one in dashboard first.")
+                return
+            lines = ["Available Sessions:"]
+            for s in sessions[:20]:
+                name = s.get("title", s.get("name", "?"))
+                status = s.get("status", "idle")
+                sid = s.get("id", "?")[:8]
+                lines.append(f"  {sid} {name} [{status}]")
+            self._send_text(chat_id, "\n".join(lines))
+        except Exception as e:
+            self._send_text(chat_id, f"Error: {e}")
+
+    # ── API Helpers ───────────────────────────────────────────────────
+
+    def _get_session_info(self, session_id):
+        try:
+            resp = requests.get(
+                f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}",
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception:
+            pass
+        return None
+
+    def _get_available_sessions(self):
+        try:
+            resp = requests.get(
+                f"{self._coa_dash_url}/api/claudecode/sessions",
+                timeout=10,
+            )
+            return resp.json().get("sessions", [])
+        except Exception:
+            return []
+
+    def _forward_to_claude(self, session_id, content, chat_id, msg_id):
+        try:
+            print(f"[FWD] session={session_id[:8]} content={content[:60]}", flush=True)
+
+            resp = requests.post(
+                f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/message",
+                json={"content": content},
+                headers={"Content-Type": "application/json"},
+                timeout=120,
+            )
+            result = resp.json()
+            print(f"[FWD] result: injected={result.get('injected')} retained={result.get('retained')} error={result.get('error')}", flush=True)
+            if resp.status_code != 200 or result.get("error"):
+                if result.get("injected") or result.get("retained"):
+                    pass  # Message was accepted despite error code
+                elif "busy" in result.get("error", "").lower():
+                    # Session busy → replace 👍 with ⏰, no text
+                    self._replace_reaction(session_id, "Alarm")
+                    self._pending_reactions.pop(session_id, None)
+                else:
+                    # Error → replace 👍 with ❌
+                    self._replace_reaction(session_id, "CrossMark")
+                    self._pending_reactions.pop(session_id, None)
+            else:
+                # Record message count at forward time for polling baseline
+                try:
+                    info_resp = requests.get(
+                        f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}",
+                        timeout=5,
+                    )
+                    if info_resp.status_code == 200:
+                        mc = info_resp.json().get("messageCount", 0)
+                        self._forward_baselines[session_id] = mc
+                        print(f"[FWD] baseline for polling: messageCount={mc}", flush=True)
+                except Exception:
+                    pass
+            # Response comes via polling thread
+        except Exception as e:
+            self._send_text(chat_id, f"⚠️ Forward failed: {e}")
+
+    # ── Send Message ──────────────────────────────────────────────────
+
+    def _add_reaction(self, message_id, emoji_type="THUMBSUP"):
+        """Add emoji reaction, returns reaction_id"""
+        try:
+            request_body = (
+                CreateMessageReactionRequestBody.builder()
+                .reaction_type({"emoji_type": emoji_type})
+                .build()
+            )
+            req = (
+                CreateMessageReactionRequest.builder()
+                .message_id(message_id)
+                .request_body(request_body)
+                .build()
+            )
+            resp = self._lark_client.im.v1.message_reaction.create(req)
+            if not resp.success():
+                print(f"[WARN] Reaction add failed: {resp.code} {resp.msg}")
+                return None
+            return resp.data.reaction_id if resp.data else None
+        except Exception as e:
+            print(f"[WARN] Reaction add: {e}")
+            return None
+
+    def _delete_reaction(self, message_id, reaction_id):
+        """Delete a reaction by its ID"""
+        if not reaction_id:
+            return
+        try:
+            req = (
+                DeleteMessageReactionRequest.builder()
+                .message_id(message_id)
+                .reaction_id(reaction_id)
+                .build()
+            )
+            resp = self._lark_client.im.v1.message_reaction.delete(req)
+            if not resp.success():
+                print(f"[WARN] Reaction delete failed: {resp.code} {resp.msg}")
+        except Exception as e:
+            print(f"[WARN] Reaction delete: {e}")
+
+    def _replace_reaction(self, session_id, emoji_type):
+        """Replace current status reaction with a new one"""
+        msg_id = self._pending_reactions.get(session_id)
+        if not msg_id:
+            return
+        # Remove old
+        old_rid = self._current_reactions.get(session_id)
+        if old_rid:
+            self._delete_reaction(msg_id, old_rid)
+        # Add new
+        new_rid = self._add_reaction(msg_id, emoji_type)
+        if new_rid:
+            self._current_reactions[session_id] = new_rid
+
+    def _send_text(self, chat_id, text):
+        """Send a text message to a Feishu chat (DM or group)"""
+        try:
+            request_body = (
+                CreateMessageRequestBody.builder()
+                .receive_id(chat_id)
+                .msg_type("text")
+                .content(json.dumps({"text": text}))
+                .build()
+            )
+            req = (
+                CreateMessageRequest.builder()
+                .receive_id_type("chat_id")
+                .request_body(request_body)
+                .build()
+            )
+            resp = self._lark_client.im.v1.message.create(req)
+            if not resp.success():
+                print(f"[WARN] Send failed: {resp.code} {resp.msg}")
+                return None
+            return resp.data.message_id if resp.data else None
+        except Exception as e:
+            print(f"[ERROR] Send: {e}")
+            return None
+
+    # ── Polling (Claude → Feishu) ─────────────────────────────────────
+
+    def _start_poll(self, session_id):
+        if session_id in self._poll_threads:
+            return
+        stop_event = threading.Event()
+        self._poll_stop[session_id] = stop_event
+        t = threading.Thread(
+            target=self._poll_loop,
+            args=(session_id,),
+            daemon=True,
+            name=f"poll-{session_id[:8]}",
+        )
+        self._poll_threads[session_id] = t
+        t.start()
+        print(f"[INFO] Polling started: {session_id[:8]}")
+
+    def _stop_poll(self, session_id):
+        if session_id in self._poll_stop:
+            self._poll_stop[session_id].set()
+        if session_id in self._poll_threads:
+            self._poll_threads[session_id].join(timeout=5)
+            del self._poll_threads[session_id]
+        if session_id in self._poll_stop:
+            del self._poll_stop[session_id]
+        print(f"[INFO] Polling stopped: {session_id[:8]}")
+
+    def _poll_loop(self, session_id):
+        """Poll for new Claude messages and forward to Feishu.
+
+        Strategy:
+        - Fast poll (2s) while working, cycle reaction emoji to show status
+        - Slow poll (6s) while idle
+        - On completion, replace reaction with ✅, send final response
+        """
+        print(f"[POLL] thread started for {session_id[:8]}", flush=True)
+        last_emoji = ""
+        while self._running:
+            if session_id in self._poll_stop and self._poll_stop[session_id].is_set():
+                break
+            try:
+                baseline_count = self._forward_baselines.get(session_id)
+
+                info_resp = requests.get(
+                    f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}",
+                    timeout=10,
+                )
+                if info_resp.status_code != 200:
+                    time.sleep(6)
+                    continue
+                info = info_resp.json()
+                current_count = info.get("messageCount", 0)
+                is_working = info.get("status") in ("working", "starting")
+                activity = info.get("activity", "")
+
+                # No baseline yet
+                if baseline_count is None:
+                    self._forward_baselines[session_id] = current_count
+                    print(f"[POLL] session={session_id[:8]} baseline={current_count}", flush=True)
+                    time.sleep(6)
+                    continue
+
+                # Update reaction while working (status changes)
+                if is_working:
+                    emoji = self._activity_emoji(activity)
+                    if emoji and emoji != last_emoji:
+                        self._replace_reaction(session_id, emoji)
+                        last_emoji = emoji
+                        print(f"[POLL] {emoji} ({activity})", flush=True)
+
+                # No new messages
+                if current_count <= baseline_count:
+                    time.sleep(2 if is_working else 6)
+                    continue
+
+                # New messages detected
+                new_count = current_count - baseline_count
+                chat_id = self._session_chat_map.get(session_id)
+                if not chat_id:
+                    time.sleep(6)
+                    continue
+
+                # Fetch history
+                resp = requests.get(
+                    f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/history?limit={max(new_count + 20, 50)}",
+                    timeout=15,
+                )
+                if resp.status_code != 200:
+                    time.sleep(2)
+                    continue
+
+                messages = resp.json().get("messages", [])
+                skip = max(0, len(messages) - new_count)
+                new_msgs = messages[skip:]
+
+                # Collect unique assistant texts
+                seen = set()
+                unique_texts = []
+                for msg in new_msgs:
+                    if msg.get("type") != "assistant":
+                        continue
+                    content = msg.get("message", {}).get("content", [])
+                    if not isinstance(content, list):
+                        continue
+                    for c in content:
+                        if isinstance(c, dict) and c.get("type") == "text":
+                            text = c.get("text", "").strip()
+                            if not text:
+                                continue
+                            key = text[:200]
+                            if key not in seen:
+                                seen.add(key)
+                                unique_texts.append(text)
+
+                if not unique_texts:
+                    time.sleep(2 if is_working else 6)
+                    continue
+
+                combined = "\n\n---\n\n".join(unique_texts)
+
+                if is_working:
+                    # Still working — update reaction, wait for more
+                    emoji = self._activity_emoji(activity)
+                    if emoji and emoji != last_emoji:
+                        self._replace_reaction(session_id, emoji)
+                        last_emoji = emoji
+                    time.sleep(2)
+                else:
+                    # Done — replace reaction with ✅, send response
+                    self._replace_reaction(session_id, "CheckMark")
+                    self._send_text(chat_id, combined[:4000])
+
+                    self._forward_baselines[session_id] = current_count
+                    self._pending_reactions.pop(session_id, None)
+                    self._current_reactions.pop(session_id, None)
+                    last_emoji = ""
+
+                    print(f"[POLL→Feishu] session={session_id[:8]} done texts={len(unique_texts)}", flush=True)
+                    time.sleep(6)
+
+            except Exception as e:
+                print(f"[WARN] Poll {session_id[:8]}: {e}")
+                time.sleep(6)
+
+    def _activity_emoji(self, activity):
+        """Map session activity to valid Feishu emoji_type"""
+        if not activity:
+            return "Typing"
+        a = activity.lower()
+        if "think" in a:
+            return "THINKING"
+        if "tool" in a:
+            tool = a.split(":", 1)[-1].strip() if ":" in a else ""
+            tool_map = {
+                "read": "OPEN_BOOK",      # not valid, fallback
+                "write": "MEMO",          # not valid, fallback
+                "edit": "Fire",
+                "bash": "BOMB",
+                "grep": "SMART",
+                "glob": "Pin",
+                "agent": "SHOCKED",
+                "web": "LOOKDOWN",        # not great, fallback
+                "search": "SMART",
+            }
+            for k, v in tool_map.items():
+                if k in tool:
+                    return v
+            return "STRIVE"
+        if "done" in a:
+            return "CheckMark"
+        if "error" in a:
+            return "CrossMark"
+        if "timeout" in a:
+            return "SWEAT"
+        if "send" in a or "resume" in a:
+            return "ROCKET"
+        return "Typing"
+
+
+def main():
+    bridge = FeishuBridge()
+    try:
+        bridge.start()
+    except KeyboardInterrupt:
+        bridge.stop()
+
+
+if __name__ == "__main__":
+    main()

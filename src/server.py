@@ -103,7 +103,7 @@ agent_cache = AgentConfigCache()
 # ============================================================================
 
 CLAUDE_SESSIONS_METADATA_PATH = os.path.expanduser("~/.claude/coa-dash-sessions.json")
-MAX_CLAUDE_SESSIONS = 5
+MAX_CLAUDE_SESSIONS = 20
 ALLOWED_CWD_PREFIX = "/home/aegis/vault/projects/"
 CLAUDE_PATH = "/home/aegis/.npm-global/bin/claude"
 
@@ -122,14 +122,53 @@ class ClaudeSession:
         self.buffer_file = f"/tmp/claude-session-{session_id}.jsonl"
         self.started_at = time.time()
         self.messages = []
+        self.last_used_at = None
+        self._lock = threading.Lock()
+
+    def is_live(self):
+        """Check if a live Claude process is using this session (interactive REPL or other client).
+
+        Detects by checking /proc for any process with the session's jsonl file open.
+        coa-dash's own subprocess won't trigger this — it exits before we'd check.
+        """
+        if not self.claude_session_id:
+            return False
+        import glob as _glob
+        import subprocess as _sp
+        # Build path to the session jsonl file
+        encoded = self.cwd.replace("/", "-")
+        session_file = os.path.expanduser(
+            f"~/.claude/projects/{encoded}/{self.claude_session_id}.jsonl"
+        )
+        if not os.path.exists(session_file):
+            return False
+        try:
+            result = _sp.run(
+                ["fuser", session_file],
+                capture_output=True, text=True, timeout=3
+            )
+            # fuser returns 0 if any process has the file open
+            return result.returncode == 0
+        except Exception:
+            return False
+        self.status = "idle"
+        self.current_activity = ""
+        self.buffer_file = f"/tmp/claude-session-{session_id}.jsonl"
+        self.started_at = time.time()
+        self.messages = []
         self.last_used_at = None  # Track for conflict detection
         self._lock = threading.Lock()
 
     def send_message_async(self, content):
         """Send message in background thread, returns immediately"""
+        # Reject if a live Claude process is using this session
+        if self.is_live():
+            return {"error": "Session is busy (live Claude process active). Try again later."}
+
         def run():
             try:
-                cmd = [CLAUDE_PATH, "--print", "--verbose", "--output-format", "stream-json"]
+                cmd = [CLAUDE_PATH, "--print", "--verbose", "--output-format", "stream-json",
+                        "--dangerously-skip-permissions"]
 
                 if self.model:
                     cmd.extend(["--model", self.model])
@@ -150,7 +189,7 @@ class ClaudeSession:
                     text=True,
                 )
 
-                stdout, stderr = proc.communicate(input=content, timeout=120)
+                stdout, stderr = proc.communicate(input=content, timeout=None)
 
                 with self._lock:
                     with open(self.buffer_file, "a") as buf:
@@ -220,7 +259,7 @@ class ClaudeSession:
             )
 
             # Send the message
-            stdout, stderr = proc.communicate(input=content, timeout=120)
+            stdout, stderr = proc.communicate(input=content, timeout=None)
 
             # Parse output and broadcast each message
             with self._lock:
@@ -531,14 +570,14 @@ def load_sessions_metadata():
                 if os.path.exists(claude_file):
                     buffer_file = claude_file  # Use original file
 
-            # Restore session if we have a valid source
-            if buffer_file and os.path.exists(buffer_file):
-                session = ClaudeSession(session_id, s["name"], s["cwd"], s.get("model"))
-                session.buffer_file = s.get("buffer_file", f"/tmp/claude-session-{session_id}.jsonl")
-                session.started_at = s.get("started_at", time.time())
-                session.claude_session_id = claude_session_id
+            # Restore session from metadata (always, even without buffer file)
+            session = ClaudeSession(session_id, s["name"], s["cwd"], s.get("model"))
+            session.buffer_file = s.get("buffer_file", f"/tmp/claude-session-{session_id}.jsonl")
+            session.started_at = s.get("started_at", time.time())
+            session.claude_session_id = claude_session_id
 
-                # Load messages from file
+            # Load messages from buffer file if it exists
+            if buffer_file and os.path.exists(buffer_file):
                 try:
                     with open(buffer_file, "r") as bf:
                         for line in bf:
@@ -549,14 +588,13 @@ def load_sessions_metadata():
                 except Exception:
                     pass
 
-                session.status = "idle"
-                session.current_activity = f"Recovered ({len(session.messages)} messages)"
-                session.message_count = len(session.messages)
+            session.status = "idle"
+            session.current_activity = f"Recovered ({len(session.messages)} messages)"
 
-                with claude_sessions_lock:
-                    claude_sessions[session_id] = session
+            with claude_sessions_lock:
+                claude_sessions[session_id] = session
 
-                print(f"[INFO] Recovered session {session_id} with {len(session.messages)} messages")
+            print(f"[INFO] Recovered session {session_id} with {len(session.messages)} messages")
     except Exception as e:
         print(f"[ERROR] Failed to load sessions metadata: {e}")
 
@@ -570,10 +608,11 @@ def create_claude_session(name, cwd, model=None):
     if not os.path.isdir(cwd):
         return {"error": "Directory does not exist"}
 
-    # Check session limit
     with claude_sessions_lock:
-        if len(claude_sessions) >= MAX_CLAUDE_SESSIONS:
-            return {"error": f"Maximum {MAX_CLAUDE_SESSIONS} sessions allowed"}
+        # Only limit concurrent working sessions, not total
+        working_count = sum(1 for s in claude_sessions.values() if s.status == "working")
+        if working_count >= MAX_CLAUDE_SESSIONS:
+            return {"error": f"Maximum {MAX_CLAUDE_SESSIONS} concurrent working sessions"}
 
         session_id = uuid.uuid4().hex[:8]
         session = ClaudeSession(session_id, name, cwd, model)
@@ -617,29 +656,51 @@ def get_claude_session_history(session_id, limit=50):
             )
             if os.path.exists(claude_file):
                 try:
-                    # Simple: read all lines, take last N
-                    with open(claude_file, "r") as f:
-                        all_lines = f.readlines()
-                    for line in all_lines[-limit:]:
-                        if line.strip():
-                            try:
-                                history.append(json.loads(line.strip()))
-                            except Exception:
-                                pass
+                    # Efficient: seek from end to read only last N lines
+                    with open(claude_file, "rb") as f:
+                        # Read backwards in chunks to find last N lines
+                        f.seek(0, 2)  # Seek to end
+                        file_size = f.tell()
+                        chunk_size = 8192
+                        lines_found = []
+                        pos = file_size
+                        while pos > 0 and len(lines_found) < limit + 10:
+                            read_size = min(chunk_size, pos)
+                            pos -= read_size
+                            f.seek(pos)
+                            chunk = f.read(read_size).decode("utf-8", errors="replace")
+                            lines_found = chunk.split("\n") + lines_found
+                        # Take last N non-empty lines
+                        for line in lines_found[-limit:]:
+                            if line.strip():
+                                try:
+                                    history.append(json.loads(line.strip()))
+                                except Exception:
+                                    pass
                 except Exception as e:
                     print(f"[WARN] Failed to read Claude session file: {e}")
 
         # Also read dashboard buffer file (contains injected messages)
         if os.path.exists(session.buffer_file):
             try:
-                with open(session.buffer_file, "r") as f:
-                    buf_lines = f.readlines()
-                for line in buf_lines:
-                    if line.strip():
-                        try:
-                            history.append(json.loads(line.strip()))
-                        except Exception:
-                            pass
+                with open(session.buffer_file, "rb") as f:
+                    f.seek(0, 2)
+                    file_size = f.tell()
+                    chunk_size = 8192
+                    lines_found = []
+                    pos = file_size
+                    while pos > 0 and len(lines_found) < limit + 10:
+                        read_size = min(chunk_size, pos)
+                        pos -= read_size
+                        f.seek(pos)
+                        chunk = f.read(read_size).decode("utf-8", errors="replace")
+                        lines_found = chunk.split("\n") + lines_found
+                    for line in lines_found[-limit:]:
+                        if line.strip():
+                            try:
+                                history.append(json.loads(line.strip()))
+                            except Exception:
+                                pass
             except Exception:
                 pass
 
@@ -805,6 +866,33 @@ def check_terminal_idle_and_alert(session_id):
                 })
 
 
+# ── Feishu Bridge Support ────────────────────────────────────────────
+
+FEISHU_PERSIST_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "feishu-persistence.json")
+
+def get_feishu_topics():
+    """Get Feishu-Claude bridge topic mappings for dashboard display"""
+    try:
+        with open(FEISHU_PERSIST_PATH, "r") as f:
+            data = json.load(f)
+        mappings = data.get("session_topic_map", {})
+        result = []
+        for session_id, root_id in mappings.items():
+            session = claude_sessions.get(session_id)
+            info = session.get_info() if session else None
+            result.append({
+                "session_id": session_id,
+                "root_id": root_id,
+                "session_name": info.get("name", session_id[:8]) if info else session_id[:8],
+                "session_status": info.get("status", "unknown") if info else "unknown",
+            })
+        return {"topics": result, "count": len(result)}
+    except FileNotFoundError:
+        return {"topics": [], "count": 0}
+    except Exception as e:
+        return {"topics": [], "count": 0, "error": str(e)}
+
+
 def _persist_dashboard_message(session_id, content):
     """Write dashboard-sent message to session buffer for persistence across page reloads"""
     with claude_sessions_lock:
@@ -834,20 +922,26 @@ def send_claude_message(session_id, content):
         if not session:
             return {"error": "Session not found"}
 
-        if session.status not in ["idle", "starting"]:
+        if session.status not in ["idle", "starting", "error"]:
             return {"error": f"Dashboard busy (status: {session.status})"}
 
         has_claude_link = bool(session.claude_session_id)
 
-    # Outside lock: inject_to_terminal acquires its own lock
+    # Outside lock: use --resume --print for all sessions
+    # (/dev/pts injection doesn't work with Claude Code's React/Ink TUI)
     if has_claude_link:
-        success, msg = inject_to_terminal(session_id, content)
-        if success:
-            # Persist dashboard message to buffer so it survives page reload
-            _persist_dashboard_message(session_id, content)
-            return {"success": True, "message": msg, "injected": True}
-        # Injection failed - fall back to retain
-        return retain_message(session_id, content)
+        _persist_dashboard_message(session_id, content)
+        with claude_sessions_lock:
+            session = claude_sessions.get(session_id)
+            if session:
+                session.status = "working"
+                session.current_activity = "Sending via resume..."
+        if session:
+            result = session.send_message_async(content)
+            if isinstance(result, dict):
+                return result  # Error response (e.g. live session conflict)
+            return {"success": True, "message": "Sent via --resume", "injected": True}
+        return {"error": "Failed to send message"}
 
     # Dashboard-only session: send directly via Claude CLI
     with claude_sessions_lock:
@@ -856,10 +950,10 @@ def send_claude_message(session_id, content):
             session.status = "working"
             session.current_activity = "Sending..."
 
-    success = session.send_message_async(content)
-    if success:
-        return {"success": True, "message": "Message sent"}
-    return {"error": "Failed to send message"}
+    result = session.send_message_async(content)
+    if isinstance(result, dict):
+        return result
+    return {"success": True, "message": "Message sent"}
 
 
 def list_available_claude_sessions(cwd=None):
@@ -994,8 +1088,9 @@ def import_claude_session(session_id, name, cwd):
         return {"error": "Claude session not found on disk"}
 
     with claude_sessions_lock:
-        if len(claude_sessions) >= MAX_CLAUDE_SESSIONS:
-            return {"error": f"Maximum {MAX_CLAUDE_SESSIONS} sessions allowed"}
+        working_count = sum(1 for s in claude_sessions.values() if s.status == "working")
+        if working_count >= MAX_CLAUDE_SESSIONS:
+            return {"error": f"Maximum {MAX_CLAUDE_SESSIONS} concurrent working sessions"}
 
         # Create a new dashboard session that links to this Claude session
         dashboard_session_id = uuid.uuid4().hex[:8]
@@ -1329,6 +1424,11 @@ def get_sessions(config, agent_filter="all", type_filter="all"):
                     "chatType": chat_type,
                     "startedAt": started_at,
                     "startedAtAgo": format_time_ago(started_at),
+                    "contextTokens": session_data.get("contextTokens", 0),
+                    "totalTokens": session_data.get("totalTokens", 0),
+                    "totalTokensFresh": session_data.get("totalTokensFresh", False),
+                    "inputTokens": session_data.get("inputTokens", 0),
+                    "outputTokens": session_data.get("outputTokens", 0),
                 }
             )
 
@@ -1445,6 +1545,8 @@ def get_tasks(config, filters=None):
                                 ):
                                     continue
 
+                        if "task_id" not in task:
+                            continue
                         task["children"] = []
                         tasks.append(task)
                     except Exception:
@@ -2194,6 +2296,9 @@ class COADashHandler(BaseHTTPRequestHandler):
             session_id = re.match(r"/api/claudecode/sessions/([^/]+)/retained$", path).group(1)
             retained = get_retained_messages(session_id)
             self.send_json({"retained": retained, "count": len(retained)})
+        # Feishu Bridge API
+        elif path == "/api/feishu/topics":
+            self.send_json(get_feishu_topics())
         elif path.startswith("/api/opencode/") and "/session/" in path:
             self.proxy_opencode_request(path)
         else:

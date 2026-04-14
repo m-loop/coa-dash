@@ -1,0 +1,18 @@
+[Unit]
+Description=Feishu-Claude Bridge - Bridges Feishu topics to Claude Code sessions
+After=network.target coa-dash.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/aegis/vault/projects/coa-dash
+ExecStart=/usr/bin/python3 /home/aegis/vault/projects/coa-dash/src/feishu-bridge.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+# Credentials - set via environment or feishu-bridge.json config
+# Environment=FEISHU_APP_ID=cli_xxxxx
+# Environment=FEISHU_APP_SECRET=xxxxx
+# Environment=FEISHU_TOPIC_GROUP_ID=oc_xxxxx
+
+[Install]
+WantedBy=default.target
