@@ -1,5 +1,49 @@
 # COA-dash Progress
 
+## v0.7.1 - Session Fix (2026-04-15)
+
+### Fixed
+- Session stuck in "working" status from terminal activity detection
+
+## v0.7.0 - Feishu Bridge + MCP Server (2026-04-15)
+
+### Features Implemented
+- [x] Feishu-Claude bridge with WebSocket real-time messaging
+- [x] Reaction-based status indicator (cycling: Typing → Thinking → Tool → Done)
+- [x] Group chat support (no @bot filtering)
+- [x] /link with fuzzy matching (session ID, project name, title)
+- [x] /new with auto mkdir + git init
+- [x] /stop to kill running Claude process
+- [x] MCP server for OpenClaw agent integration (5 tools)
+- [x] Claude Code session management with --resume --print
+- [x] SSE streaming for real-time dashboard updates
+- [x] Session persistence across server restarts
+- [x] Live session protection (reject when active Claude process)
+- [x] Session import from disk
+- [x] No timeout (supports hours-long tasks)
+- [x] 20 concurrent working session limit (idle unlimited)
+
+### Key Files
+| File | Lines | Purpose |
+|------|-------|---------|
+| `src/feishu-bridge.py` | ~750 | Feishu-Claude WebSocket bridge |
+| `src/coa-dash-mcp.py` | ~310 | MCP server for OpenClaw |
+| `src/server.py` | ~2750 | HTTP server + session manager |
+| `src/index.html` | ~2200 | Dashboard UI |
+
+### Design Decisions
+- D99-D115: See `docs/DESIGN-DECISIONS.md`
+
+---
+
+## Current State
+
+**Version**: 0.7.1
+**Status**: Deployed and running
+**Last Updated**: 2026-04-15
+
+---
+
 ## v0.5.5 - 立即执行功能 (2026-04-01)
 
 ### Features Implemented

@@ -264,13 +264,16 @@ class FeishuBridge:
             self._cmd_sessions(chat_id)
         elif command == "/stop":
             self._cmd_stop(lookup_key, chat_id)
+        elif command == "/ls":
+            self._cmd_ls(chat_id, args)
         elif command == "/help":
             self._send_text(chat_id,
                 "Claude Bridge Commands:\n\n"
                 "/new <project> [cwd] - Create session (auto-mkdir + git init)\n"
-                "/link <id> - Link chat to existing session\n"
+                "/link <id|name> - Link chat to existing session\n"
                 "/unlink - Remove link\n"
                 "/stop - Stop current session task\n"
+                "/ls [path] - List project directories\n"
                 "/list - Show all mappings\n"
                 "/status - Current session status\n"
                 "/sessions - List available sessions\n"
@@ -417,6 +420,43 @@ class FeishuBridge:
                     self._send_text(chat_id, "No active process found. Session may already be idle.")
         except Exception as e:
             self._send_text(chat_id, f"⚠️ Stop failed: {e}")
+
+    def _cmd_ls(self, chat_id, args):
+        """List project directories"""
+        import subprocess
+        base = "/home/aegis/vault/projects"
+        target = os.path.join(base, args) if args else base
+
+        # Security: only allow listing under /home/aegis/vault/projects
+        real = os.path.realpath(target)
+        if not real.startswith("/home/aegis/vault/projects"):
+            self._send_text(chat_id, "⚠️ Only /home/aegis/vault/projects allowed")
+            return
+
+        if not os.path.isdir(real):
+            self._send_text(chat_id, f"⚠️ Not found: {target}")
+            return
+
+        try:
+            entries = sorted(os.listdir(real))
+            dirs = [e for e in entries if os.path.isdir(os.path.join(real, e))]
+            if not dirs:
+                self._send_text(chat_id, f"📂 {os.path.relpath(real, base) or '/'} — empty")
+                return
+
+            # Show up to 30 dirs, with git status indicator
+            lines = [f"📂 {os.path.relpath(real, base) or '/'} ({len(dirs)} dirs)"]
+            for d in dirs[:30]:
+                git_mark = ""
+                if os.path.isdir(os.path.join(real, d, ".git")):
+                    git_mark = " *"
+                lines.append(f"  {d}{git_mark}")
+            if len(dirs) > 30:
+                lines.append(f"  ... +{len(dirs) - 30} more")
+            lines.append("\n(* = git repo)")
+            self._send_text(chat_id, "\n".join(lines))
+        except Exception as e:
+            self._send_text(chat_id, f"⚠️ Error: {e}")
 
     def _cmd_list(self, chat_id):
         lines = ["Active Mappings:"]

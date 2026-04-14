@@ -834,7 +834,8 @@ This document records every design decision made for COA-dash, including reasoni
 | v0.5.0 Session State | D72-D77 | Implemented |
 | v0.5.0 OpenCode Tab | D78-D95 | Planned (code lost, needs re-implementation) |
 | v0.5.3 Status/Assignee | D96-D98 | Implemented (uncommitted) |
-| **Total Active Decisions** | **98** | (D8 removed) |
+| v0.7.0 Claude Code & Feishu | D99-D115 | Implemented |
+| **Total Active Decisions** | **115** | (D8 removed) |
 
 ---
 
@@ -858,7 +859,85 @@ This document records every design decision made for COA-dash, including reasoni
 | 0.5.0 | D78-D92 Added | OpenCode tab with chat interface |
 | 0.5.0 | D93 Added | Gzip handling fix for OpenCode proxy |
 | 0.5.0 | D94-D95 Added | SQLite session query with worktree filter |
+| 0.7.0 | D99-D115 Added | Claude Code sessions, Feishu bridge, MCP server |
 
 ---
+
+## v0.7.0 — Claude Code Sessions & Feishu Bridge (D99-D115)
+
+### D99: Claude Code session management via CLI subprocess
+**Decision**: Use `claude --resume --print --output-format stream-json --dangerously-skip-permissions` to manage sessions. Each message spawns a subprocess, not a persistent process.
+**Why**: Claude Code's built-in `--resume` flag provides session persistence. No need to manage long-running processes.
+**Trade-off**: Each message has subprocess startup overhead (~2s), but gains reliability (no process crashes to handle).
+
+### D100: Session limit by working count, not total
+**Decision**: Limit to 20 concurrent **working** sessions, not 20 total. Idle sessions don't count.
+**Why**: Idle sessions only consume memory (message history in dict). Limiting working sessions prevents resource contention from parallel Claude processes.
+
+### D101: No timeout for Claude tasks
+**Decision**: `proc.communicate(timeout=None)` — no time limit on Claude task execution.
+**Why**: Complex tasks (codebase refactoring, multi-file edits) can take hours. User can use `/stop` to manually kill long-running tasks.
+
+### D102: Live session protection via fuser
+**Decision**: Before sending a message, check if a live Claude process has the session file open using `fuser`. Reject if busy.
+**Why**: Sending a message while Claude is actively processing would cause context corruption in the session file.
+**Trade-off**: `fuser` check adds ~1s latency. Worth it for safety.
+
+### D103: Session persistence across server restarts
+**Decision**: Save session metadata to `~/.claude/coa-dash-sessions.json`. Restore on startup, even if buffer file doesn't exist.
+**Why**: Server restarts (systemctl restart, crash recovery) should not lose session mappings. Previously, new sessions without buffer files were lost.
+
+### D104: Feishu bridge uses WebSocket (not webhook)
+**Decision**: Use lark-oapi SDK WebSocket connection for real-time events, not HTTP webhook.
+**Why**: WebSocket is simpler (no public endpoint, no signature verification), works behind NAT/firewall, and provides instant message delivery.
+
+### D105: No @bot filtering for group chats
+**Decision**: All messages in linked groups are forwarded to Claude, without requiring @bot prefix.
+**Why**: User's groups are personal (only user + bot). Requiring @bot every time is tedious. User explicitly requested: "不要自作主张加@bot过滤".
+
+### D106: Reaction-based status indicator (not message updates)
+**Decision**: Show session status via cycling emoji reactions on the user's message, not by sending/updating progress messages.
+**Why**: Feishu PatchMessage only works on card messages, not plain text. Sending multiple status messages would spam the chat. Reactions are non-intrusive and can be replaced in-place.
+**Implementation**: Delete old reaction by reaction_id, add new reaction. `CreateMessageReaction` returns `reaction_id`, `DeleteMessageReactionRequest` uses it.
+
+### D107: Feishu emoji_type is case-sensitive
+**Decision**: Use exact case from Feishu docs. `Typing` not `TYPING`, `Fire` not `FIRE`, `CheckMark` not `CHECK`.
+**Why**: Feishu API returns `231001 reaction type is invalid` for wrong case. Full list at https://open.feishu.cn/document/server-docs/im-v1/message-reaction/emojis-introduce
+
+### D108: Polling-based response delivery (not webhook)
+**Decision**: Bridge polls coa-dash API every 2s (working) / 6s (idle) to detect new Claude responses.
+**Why**: No webhook infrastructure for Claude→Feishu direction. Polling is simple and reliable. 2s latency is acceptable for chat.
+
+### D109: Response deduplication with text[:200] key
+**Decision**: Deduplicate assistant responses using first 200 chars as key, in a `seen` set.
+**Why**: `--resume` replays old messages in the JSONL file. Without dedup, old content appears as "new" and gets sent multiple times.
+
+### D110: MCP server wraps coa-dash HTTP API
+**Decision**: MCP server (`coa-dash-mcp.py`) calls coa-dash REST API, doesn't duplicate session management logic.
+**Why**: Single source of truth. Any improvements to the API (persistence, protection, limits) automatically benefit MCP clients.
+
+### D111: MCP claude_chat is synchronous with polling
+**Decision**: `claude_chat` tool blocks until Claude responds, polling status every 2s.
+**Why**: OpenClaw agents need the response to decide next action. Async would require complex callback flow that MCP doesn't support.
+
+### D112: /link supports fuzzy matching
+**Decision**: `/link <query>` matches against session ID prefix, shortId, project name, name, and title. Returns most recent match.
+**Why**: Feishu users can't easily type full session IDs on mobile. Typing project name is more natural.
+
+### D113: /new auto-creates project directory
+**Decision**: `/new <project>` creates `/home/aegis/vault/projects/<project>` if not exists, runs `git init`, creates session, and auto-links.
+**Why**: Reduces friction for starting new projects from Feishu. One command instead of mkdir + git init + create session + link.
+
+### D114: Bridge persistence via JSON file
+**Decision**: Chat-session mappings saved to `config/feishu-persistence.json` on every change.
+**Why**: Bridge restarts should preserve mappings. In-memory state would require re-linking every chat.
+
+### D115: /stop kills Claude process
+**Decision**: `/stop` finds and kills Claude processes matching the session, using `pgrep -f "claude.*--resume.*<id>"`.
+**Why**: No timeout on tasks means users need a manual escape hatch for stuck or unwanted long-running tasks.
+
+---
+
+**END OF DESIGN DECISIONS**
 
 **END OF DESIGN DECISIONS**
