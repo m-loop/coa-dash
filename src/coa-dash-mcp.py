@@ -14,6 +14,7 @@ Transport: stdio (for OpenClaw / Claude Code / any MCP client)
 
 import json
 import os
+import subprocess
 import time
 import urllib.request
 import urllib.error
@@ -111,6 +112,11 @@ def claude_session_create(
         cwd = f"{ALLOWED_CWD}{name}"
     if not cwd.startswith(ALLOWED_CWD):
         return json.dumps({"error": f"cwd must be within {ALLOWED_CWD}"})
+
+    # Auto-create directory if not exists
+    os.makedirs(cwd, exist_ok=True)
+    if not os.path.exists(os.path.join(cwd, ".git")):
+        subprocess.run(["git", "init", cwd], capture_output=True, timeout=10)
 
     body = {"name": name, "cwd": cwd}
     if model:

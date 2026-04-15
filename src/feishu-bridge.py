@@ -540,11 +540,10 @@ class FeishuBridge:
                 if result.get("injected") or result.get("retained"):
                     pass  # Message was accepted despite error code
                 elif "busy" in result.get("error", "").lower():
-                    # Session busy → replace 👍 with ⏰, no text
+                    # Session busy → replace reaction with ⏰, no text
                     self._replace_reaction(session_id, "Alarm")
-                    self._pending_reactions.pop(session_id, None)
                 else:
-                    # Error → replace 👍 with ❌
+                    # Error → replace reaction with ❌
                     self._replace_reaction(session_id, "CrossMark")
                     self._pending_reactions.pop(session_id, None)
             else:
@@ -610,6 +609,7 @@ class FeishuBridge:
         """Replace current status reaction with a new one"""
         msg_id = self._pending_reactions.get(session_id)
         if not msg_id:
+            print(f"[REACTION] skip {emoji_type}: no msg_id for {session_id[:8]}", flush=True)
             return
         # Remove old
         old_rid = self._current_reactions.get(session_id)
@@ -619,6 +619,9 @@ class FeishuBridge:
         new_rid = self._add_reaction(msg_id, emoji_type)
         if new_rid:
             self._current_reactions[session_id] = new_rid
+            print(f"[REACTION] {session_id[:8]}: -> {emoji_type} rid={new_rid[:8]}", flush=True)
+        else:
+            print(f"[REACTION] {session_id[:8]}: failed to add {emoji_type}", flush=True)
 
     def _send_text(self, chat_id, text):
         """Send a text message to a Feishu chat (DM or group)"""
@@ -740,30 +743,27 @@ class FeishuBridge:
                 skip = max(0, len(messages) - new_count)
                 new_msgs = messages[skip:]
 
-                # Collect unique assistant texts
-                seen = set()
-                unique_texts = []
-                for msg in new_msgs:
+                # Collect only the LAST assistant response (avoids --resume replay)
+                last_assistant_text = ""
+                for msg in reversed(new_msgs):
                     if msg.get("type") != "assistant":
                         continue
                     content = msg.get("message", {}).get("content", [])
                     if not isinstance(content, list):
                         continue
+                    texts = []
                     for c in content:
                         if isinstance(c, dict) and c.get("type") == "text":
                             text = c.get("text", "").strip()
-                            if not text:
-                                continue
-                            key = text[:200]
-                            if key not in seen:
-                                seen.add(key)
-                                unique_texts.append(text)
+                            if text:
+                                texts.append(text)
+                    if texts:
+                        last_assistant_text = "\n\n".join(texts)
+                        break
 
-                if not unique_texts:
+                if not last_assistant_text:
                     time.sleep(2 if is_working else 6)
                     continue
-
-                combined = "\n\n---\n\n".join(unique_texts)
 
                 if is_working:
                     # Still working — update reaction, wait for more
@@ -775,14 +775,14 @@ class FeishuBridge:
                 else:
                     # Done — replace reaction with ✅, send response
                     self._replace_reaction(session_id, "CheckMark")
-                    self._send_text(chat_id, combined[:4000])
+                    self._send_text(chat_id, last_assistant_text[:4000])
 
                     self._forward_baselines[session_id] = current_count
                     self._pending_reactions.pop(session_id, None)
                     self._current_reactions.pop(session_id, None)
                     last_emoji = ""
 
-                    print(f"[POLL→Feishu] session={session_id[:8]} done texts={len(unique_texts)}", flush=True)
+                    print(f"[POLL→Feishu] session={session_id[:8]} done len={len(last_assistant_text)}", flush=True)
                     time.sleep(6)
 
             except Exception as e:
