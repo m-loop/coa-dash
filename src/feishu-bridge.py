@@ -36,6 +36,8 @@ from lark_oapi.api.im.v1 import (
     CreateMessageReactionRequest,
     CreateMessageReactionRequestBody,
     DeleteMessageReactionRequest,
+    PatchMessageRequest,
+    PatchMessageRequestBody,
 )
 
 # ── Config paths ──────────────────────────────────────────────────────
@@ -67,10 +69,12 @@ class FeishuBridge:
         self._pending_reactions = {}  # session_id -> msg_id (to add reactions to)
         self._current_reactions = {}  # session_id -> reaction_id (current status reaction)
         self._forward_baselines = {}  # session_id -> message count at forward time
+        self._response_cards = {}  # session_id -> message_id of response card
         self._running = False
 
         self._load_config()
         self._load_persistence()
+        self._load_baselines()
 
     # ── Config / Persistence ──────────────────────────────────────────
 
@@ -109,11 +113,24 @@ class FeishuBridge:
                 with open(PERSIST_PATH, "w") as f:
                     json.dump({
                         "chat_session_map": self._chat_session_map,
+                        "forward_baselines": self._forward_baselines,
                         "mode": self._mode,
                         "last_saved": datetime.now().isoformat(),
                     }, f, indent=2)
             except Exception as e:
                 print(f"[WARN] Persistence save failed: {e}")
+
+    def _load_baselines(self):
+        """Load forward baselines from persistence file"""
+        try:
+            with open(PERSIST_PATH, "r") as f:
+                data = json.load(f)
+            baselines = data.get("forward_baselines", {})
+            if baselines:
+                self._forward_baselines = baselines
+                print(f"[Bridge] Loaded {len(baselines)} baselines from persistence")
+        except Exception:
+            pass
 
     # ── Client Init ───────────────────────────────────────────────────
 
@@ -153,11 +170,12 @@ class FeishuBridge:
 
         self._init_clients()
 
+        self._running = True
+
         # Resume polling for existing mappings
         for session_id in self._session_chat_map:
             self._start_poll(session_id)
 
-        self._running = True
         print(f"[Bridge] Starting (mode={self._mode})...")
         try:
             self._ws_client.start()
@@ -474,15 +492,36 @@ class FeishuBridge:
             self._send_text(chat_id, "No session linked. Use /link <session-id>")
             return
         info = self._get_session_info(session_id)
-        if info:
-            self._send_text(chat_id,
-                f"Session: {info.get('title', session_id[:8])}\n"
-                f"Status: {info.get('status', '?')}\n"
-                f"Duration: {info.get('duration', '?')}s\n"
-                f"Messages: {info.get('messageCount', '?')}"
-            )
-        else:
+        if not info:
             self._send_text(chat_id, "Session not found (may have been deleted)")
+            return
+
+        # Format duration
+        dur = info.get('duration', 0)
+        dur_str = f"{dur:.0f}s" if dur < 3600 else f"{dur/3600:.1f}h"
+
+        # Context estimate (rough: ~4 chars per token, messages are in JSONL)
+        msg_count = info.get('messageCount', 0)
+        ctx_est = f"~{msg_count * 500:,} tokens" if msg_count > 0 else "empty"
+
+        status = info.get('status', '?')
+        activity = info.get('activity', '')
+        model = info.get('model') or 'default'
+        claude_sid = info.get('claudeSessionId', '')
+
+        lines = [
+            f"Session: {info.get('title', session_id[:8])}",
+            f"ID: {session_id}",
+            f"Claude SID: {claude_sid[:20]}..." if claude_sid else "Claude SID: (none)",
+            f"Folder: {info.get('cwd', '?')}",
+            f"Status: {status}" + (f" ({activity})" if activity and status != 'idle' else ""),
+            f"Model: {model}",
+            f"Messages: {msg_count}",
+            f"Context: {ctx_est}",
+            f"Duration: {dur_str}",
+            f"Project: {info.get('projectName', '?')}",
+        ]
+        self._send_text(chat_id, "\n".join(lines))
 
     def _cmd_sessions(self, chat_id):
         try:
@@ -556,6 +595,7 @@ class FeishuBridge:
                     if info_resp.status_code == 200:
                         mc = info_resp.json().get("messageCount", 0)
                         self._forward_baselines[session_id] = mc
+                        self._save_persistence()  # Persist baseline
                         print(f"[FWD] baseline for polling: messageCount={mc}", flush=True)
                 except Exception:
                     pass
@@ -647,6 +687,77 @@ class FeishuBridge:
         except Exception as e:
             print(f"[ERROR] Send: {e}")
             return None
+
+    # ── Card Messages ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _build_card_json(title, content, status="done"):
+        """Build Feishu card JSON 2.0 structure"""
+        # Truncate content for card display
+        display = content[:3500] if len(content) > 3500 else content
+        # Escape any special chars for JSON
+        card = {
+            "schema": "2.0",
+            "header": {
+                "title": {"tag": "plain_text", "content": title},
+                "template": "blue" if status == "working" else "green" if status == "done" else "red",
+            },
+            "body": {
+                "elements": [
+                    {
+                        "tag": "markdown",
+                        "content": display,
+                    }
+                ]
+            },
+        }
+        return json.dumps(card)
+
+    def _send_card(self, chat_id, title, content, status="done"):
+        """Send an interactive card message. Returns message_id."""
+        try:
+            card_content = self._build_card_json(title, content, status)
+            request_body = (
+                CreateMessageRequestBody.builder()
+                .receive_id(chat_id)
+                .msg_type("interactive")
+                .content(card_content)
+                .build()
+            )
+            req = (
+                CreateMessageRequest.builder()
+                .receive_id_type("chat_id")
+                .request_body(request_body)
+                .build()
+            )
+            resp = self._lark_client.im.v1.message.create(req)
+            if not resp.success():
+                print(f"[WARN] Card send failed: {resp.code} {resp.msg}")
+                # Fallback to plain text
+                return self._send_text(chat_id, content[:4000])
+            msg_id = resp.data.message_id if resp.data else None
+            print(f"[CARD] sent card msg_id={msg_id[:8] if msg_id else 'None'}", flush=True)
+            return msg_id
+        except Exception as e:
+            print(f"[ERROR] Card send: {e}")
+            return self._send_text(chat_id, content[:4000])
+
+    def _update_card(self, message_id, title, content, status="done"):
+        """Update an existing card message via PatchMessage."""
+        if not message_id:
+            return False
+        try:
+            card_content = self._build_card_json(title, content, status)
+            request_body = PatchMessageRequestBody.builder().content(card_content).build()
+            req = PatchMessageRequest.builder().message_id(message_id).request_body(request_body).build()
+            resp = self._lark_client.im.v1.message.patch(req)
+            if not resp.success():
+                print(f"[WARN] Card update failed: {resp.code} {resp.msg}")
+                return False
+            return True
+        except Exception as e:
+            print(f"[WARN] Card update: {e}")
+            return False
 
     # ── Polling (Claude → Feishu) ─────────────────────────────────────
 
@@ -743,7 +854,7 @@ class FeishuBridge:
                 skip = max(0, len(messages) - new_count)
                 new_msgs = messages[skip:]
 
-                # Collect only the LAST assistant response (avoids --resume replay)
+                # Collect the LAST assistant response that has text content
                 last_assistant_text = ""
                 for msg in reversed(new_msgs):
                     if msg.get("type") != "assistant":
@@ -761,26 +872,69 @@ class FeishuBridge:
                         last_assistant_text = "\n\n".join(texts)
                         break
 
+                # If no text in new messages, check if there's a completed
+                # response in the full history (edge case: tool-only new msgs)
+                if not last_assistant_text and not is_working and new_count > 0:
+                    for msg in reversed(messages):
+                        if msg.get("type") != "assistant":
+                            continue
+                        content = msg.get("message", {}).get("content", [])
+                        if not isinstance(content, list):
+                            continue
+                        texts = []
+                        for c in content:
+                            if isinstance(c, dict) and c.get("type") == "text":
+                                text = c.get("text", "").strip()
+                                if text:
+                                    texts.append(text)
+                        if texts:
+                            last_assistant_text = "\n\n".join(texts)
+                            break
+
                 if not last_assistant_text:
                     time.sleep(2 if is_working else 6)
                     continue
 
                 if is_working:
-                    # Still working — update reaction, wait for more
+                    # Still working — update reaction, update card with partial
                     emoji = self._activity_emoji(activity)
                     if emoji and emoji != last_emoji:
                         self._replace_reaction(session_id, emoji)
                         last_emoji = emoji
+
+                    # Send/update card with streaming status
+                    if last_assistant_text:
+                        card_id = self._response_cards.get(session_id)
+                        chat_id_for_card = self._session_chat_map.get(session_id)
+                        if chat_id_for_card:
+                            if card_id:
+                                self._update_card(card_id, "Claude (working...)", last_assistant_text, "working")
+                            else:
+                                card_id = self._send_card(chat_id_for_card, "Claude (working...)", last_assistant_text, "working")
+                                if card_id:
+                                    self._response_cards[session_id] = card_id
                     time.sleep(2)
                 else:
-                    # Done — replace reaction with ✅, send response
+                    # Done — replace reaction with ✅, send/update card response
                     self._replace_reaction(session_id, "CheckMark")
-                    self._send_text(chat_id, last_assistant_text[:4000])
+
+                    # Try to update existing card, or send new one
+                    card_id = self._response_cards.get(session_id)
+                    if card_id:
+                        updated = self._update_card(card_id, "Claude", last_assistant_text, "done")
+                        if not updated:
+                            card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
+                    else:
+                        card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
+
+                    if card_id:
+                        self._response_cards[session_id] = card_id
 
                     self._forward_baselines[session_id] = current_count
                     self._pending_reactions.pop(session_id, None)
                     self._current_reactions.pop(session_id, None)
                     last_emoji = ""
+                    self._save_persistence()  # Persist baseline after delivery
 
                     print(f"[POLL→Feishu] session={session_id[:8]} done len={len(last_assistant_text)}", flush=True)
                     time.sleep(6)
