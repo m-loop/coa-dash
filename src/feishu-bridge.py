@@ -863,6 +863,10 @@ class FeishuBridge:
                     timeout=10,
                 )
                 if info_resp.status_code != 200:
+                    # API down (coa-dash restarting?) — reset baseline to avoid
+                    # replaying old messages when it comes back
+                    if info_resp.status_code in (0, 502, 503):
+                        self._forward_baselines[session_id] = baseline_count
                     time.sleep(6)
                     continue
                 info = info_resp.json()
@@ -1014,6 +1018,22 @@ class FeishuBridge:
                     print(f"[POLL→Feishu] session={session_id[:8]} done len={len(last_assistant_text)} card={card_id is not None}", flush=True)
                     time.sleep(6)
 
+            except (requests.ConnectionError, requests.Timeout) as e:
+                # coa-dash likely restarting — reset baseline to current count
+                # to avoid replaying old messages when it comes back
+                print(f"[WARN] Poll {session_id[:8]}: connection error, syncing baseline", flush=True)
+                try:
+                    resp = requests.get(
+                        f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}",
+                        timeout=5,
+                    )
+                    if resp.status_code == 200:
+                        new_baseline = resp.json().get("messageCount", 0)
+                        self._forward_baselines[session_id] = new_baseline
+                        print(f"[POLL] {session_id[:8]} baseline synced to {new_baseline}", flush=True)
+                except Exception:
+                    pass
+                time.sleep(6)
             except Exception as e:
                 print(f"[WARN] Poll {session_id[:8]}: {e}")
                 time.sleep(6)
