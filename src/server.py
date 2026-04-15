@@ -2308,6 +2308,29 @@ class COADashHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        # Handle /api/claudecode/sessions/:id/status (stale session reset)
+        session_status_match = re.match(r"/api/claudecode/sessions/([^/]+)/status$", path)
+        if session_status_match:
+            session_id = session_status_match.group(1)
+            session = sessions.get(session_id)
+            if not session:
+                self.send_json({"error": "Session not found"}, 404)
+                return
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                new_status = data.get("status", "idle")
+                new_activity = data.get("activity", "Reset")
+                with session._lock:
+                    session.status = new_status
+                    session.current_activity = new_activity
+                broadcast_session_update(session_id, "status", session.get_info())
+                self.send_json({"success": True, "status": new_status})
+            except Exception as e:
+                self.send_json({"error": str(e)}, 400)
+            return
+
         # Handle /api/tasks/:id/assignee
         assignee_match = re.match(r"/api/tasks/([^/]+)/assignee", path)
         if assignee_match:

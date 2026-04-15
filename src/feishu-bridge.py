@@ -282,6 +282,8 @@ class FeishuBridge:
             self._cmd_sessions(chat_id)
         elif command == "/stop":
             self._cmd_stop(lookup_key, chat_id)
+        elif command == "/compact":
+            self._cmd_compact(lookup_key, chat_id)
         elif command == "/ls":
             self._cmd_ls(chat_id, args)
         elif command == "/help":
@@ -291,6 +293,7 @@ class FeishuBridge:
                 "/link <id|name> - Link chat to existing session\n"
                 "/unlink - Remove link\n"
                 "/stop - Stop current session task\n"
+                "/compact - Compress session context\n"
                 "/ls [path] - List project directories\n"
                 "/list - Show all mappings\n"
                 "/status - Current session status\n"
@@ -475,6 +478,56 @@ class FeishuBridge:
             self._send_text(chat_id, "\n".join(lines))
         except Exception as e:
             self._send_text(chat_id, f"⚠️ Error: {e}")
+
+    def _cmd_compact(self, lookup_key, chat_id):
+        """Compress session context by piping /compact to claude CLI"""
+        session_id = self._chat_session_map.get(lookup_key)
+        if not session_id:
+            self._send_text(chat_id, "No linked session.")
+            return
+
+        info = self._get_session_info(session_id)
+        if not info:
+            self._send_text(chat_id, "Session not found.")
+            return
+
+        if info.get("status") == "working":
+            self._send_text(chat_id, "⚠️ Session is working. Wait or /stop first.")
+            return
+
+        claude_sid = info.get("claudeSessionId", "")
+        cwd = info.get("cwd", ".")
+
+        if not claude_sid:
+            self._send_text(chat_id, "⚠️ No Claude session ID (no conversation to compact).")
+            return
+
+        self._send_text(chat_id, "⏳ Compacting session context...")
+
+        import subprocess
+        try:
+            cmd = ["claude", "--resume", claude_sid, "--dangerously-skip-permissions"]
+            proc = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            stdout, stderr = proc.communicate(input="/compact\n/exit\n", timeout=120)
+            if proc.returncode == 0:
+                msg_count = info.get("messageCount", "?")
+                self._send_text(chat_id, f"✅ Context compacted (was {msg_count} messages). Session ready.")
+                print(f"[COMPACT] {session_id[:8]} done", flush=True)
+            else:
+                err = stderr.strip()[:200] if stderr else "unknown error"
+                self._send_text(chat_id, f"⚠️ Compact failed: {err}")
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            self._send_text(chat_id, "⚠️ Compact timed out (2 min). Try again or start a new session.")
+        except Exception as e:
+            self._send_text(chat_id, f"⚠️ Compact error: {e}")
 
     def _cmd_list(self, chat_id):
         lines = ["Active Mappings:"]
@@ -792,10 +845,13 @@ class FeishuBridge:
         Strategy:
         - Fast poll (2s) while working, cycle reaction emoji to show status
         - Slow poll (6s) while idle
-        - On completion, replace reaction with ✅, send final response
+        - Detect stale sessions (process dead but status stuck "working")
+        - On completion, replace reaction with ✅, send card response
         """
         print(f"[POLL] thread started for {session_id[:8]}", flush=True)
         last_emoji = ""
+        working_since = None  # Track when we first saw "working"
+        last_activity = ""
         while self._running:
             if session_id in self._poll_stop and self._poll_stop[session_id].is_set():
                 break
@@ -820,6 +876,31 @@ class FeishuBridge:
                     print(f"[POLL] session={session_id[:8]} baseline={current_count}", flush=True)
                     time.sleep(6)
                     continue
+
+                # Stale session detection: working for >5 min with same activity
+                if is_working:
+                    if working_since is None:
+                        working_since = time.time()
+                        last_activity = activity
+                    elif activity != last_activity:
+                        # Activity changed — reset timer
+                        working_since = time.time()
+                        last_activity = activity
+                    elif time.time() - working_since > 300:
+                        # 5 min with same activity — check if process alive
+                        if not self._is_claude_alive(session_id):
+                            print(f"[STALE] {session_id[:8]}: working 5+ min, no process. Resetting.", flush=True)
+                            self._reset_stale_session(session_id, info)
+                            chat_id = self._session_chat_map.get(session_id)
+                            if chat_id:
+                                self._send_text(chat_id, "⚠️ Session was stuck (process died). Reset to idle. Try again.")
+                            self._replace_reaction(session_id, "CrossMark")
+                            working_since = None
+                            last_emoji = ""
+                            time.sleep(6)
+                            continue
+                else:
+                    working_since = None
 
                 # Update reaction while working (status changes)
                 if is_working:
@@ -936,6 +1017,45 @@ class FeishuBridge:
             except Exception as e:
                 print(f"[WARN] Poll {session_id[:8]}: {e}")
                 time.sleep(6)
+
+    def _is_claude_alive(self, session_id):
+        """Check if a Claude process is still running for this session."""
+        import subprocess
+        try:
+            # Check for claude process with this session id in args
+            result = subprocess.run(
+                ["pgrep", "-f", f"claude.*--resume.*{session_id[:8]}"],
+                capture_output=True, text=True, timeout=3
+            )
+            if result.stdout.strip():
+                return True
+            # Also check by buffer file
+            result2 = subprocess.run(
+                ["pgrep", "-f", f"claude-session-{session_id}"],
+                capture_output=True, text=True, timeout=3
+            )
+            return bool(result2.stdout.strip())
+        except Exception:
+            return False
+
+    def _reset_stale_session(self, session_id, info):
+        """Force reset a stuck session to idle via coa-dash API."""
+        # Try the reset endpoint if available
+        try:
+            resp = requests.put(
+                f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/status",
+                json={"status": "idle", "activity": "Reset (stale process)"},
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                print(f"[STALE] {session_id[:8]} reset via API", flush=True)
+                return
+        except Exception:
+            pass
+        # Fallback: no API endpoint to reset status directly
+        # The server.py doesn't expose a status reset endpoint, so we just
+        # note it and handle it in the bridge (skip forward, notify user)
+        print(f"[STALE] {session_id[:8]} no reset API available", flush=True)
 
     def _activity_emoji(self, activity):
         """Map session activity to valid Feishu emoji_type"""
