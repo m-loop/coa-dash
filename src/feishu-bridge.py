@@ -736,7 +736,7 @@ class FeishuBridge:
                 # Fallback to plain text
                 return self._send_text(chat_id, content[:4000])
             msg_id = resp.data.message_id if resp.data else None
-            print(f"[CARD] sent card msg_id={msg_id[:8] if msg_id else 'None'}", flush=True)
+            print(f"[CARD] sent card chat={chat_id[:8]} msg_id={msg_id[:16] if msg_id else 'None'}", flush=True)
             return msg_id
         except Exception as e:
             print(f"[ERROR] Card send: {e}")
@@ -915,17 +915,11 @@ class FeishuBridge:
                                     self._response_cards[session_id] = card_id
                     time.sleep(2)
                 else:
-                    # Done — replace reaction with ✅, send/update card response
+                    # Done — replace reaction with ✅, send card response
                     self._replace_reaction(session_id, "CheckMark")
 
-                    # Try to update existing card, or send new one
-                    card_id = self._response_cards.get(session_id)
-                    if card_id:
-                        updated = self._update_card(card_id, "Claude", last_assistant_text, "done")
-                        if not updated:
-                            card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
-                    else:
-                        card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
+                    # Always send a new card for the final response
+                    card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
 
                     if card_id:
                         self._response_cards[session_id] = card_id
@@ -936,7 +930,7 @@ class FeishuBridge:
                     last_emoji = ""
                     self._save_persistence()  # Persist baseline after delivery
 
-                    print(f"[POLL→Feishu] session={session_id[:8]} done len={len(last_assistant_text)}", flush=True)
+                    print(f"[POLL→Feishu] session={session_id[:8]} done len={len(last_assistant_text)} card={card_id is not None}", flush=True)
                     time.sleep(6)
 
             except Exception as e:
