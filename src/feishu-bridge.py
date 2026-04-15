@@ -807,6 +807,7 @@ class FeishuBridge:
             if not resp.success():
                 print(f"[WARN] Card update failed: {resp.code} {resp.msg}")
                 return False
+            print(f"[CARD] updated card msg={message_id[:16]} status={status}", flush=True)
             return True
         except Exception as e:
             print(f"[WARN] Card update: {e}")
@@ -850,6 +851,7 @@ class FeishuBridge:
         """
         print(f"[POLL] thread started for {session_id[:8]}", flush=True)
         last_emoji = ""
+        last_card_activity = ""  # Track activity for card update throttling
         working_since = None  # Track when we first saw "working"
         last_activity = ""
         while self._running:
@@ -913,6 +915,20 @@ class FeishuBridge:
                         self._replace_reaction(session_id, emoji)
                         last_emoji = emoji
                         print(f"[POLL] {emoji} ({activity})", flush=True)
+
+                    # Send/update status card showing current activity (throttled)
+                    if activity != last_card_activity:
+                        chat_id_for_card = self._session_chat_map.get(session_id)
+                        if chat_id_for_card:
+                            card_id = self._response_cards.get(session_id)
+                            status_text = f"**{activity}**"
+                            if card_id:
+                                self._update_card(card_id, "Claude (working)", status_text, "working")
+                            else:
+                                card_id = self._send_card(chat_id_for_card, "Claude (working)", status_text, "working")
+                                if card_id:
+                                    self._response_cards[session_id] = card_id
+                        last_card_activity = activity
 
                 # No new messages
                 if current_count <= baseline_count:
@@ -1013,6 +1029,7 @@ class FeishuBridge:
                     self._pending_reactions.pop(session_id, None)
                     self._current_reactions.pop(session_id, None)
                     last_emoji = ""
+                    last_card_activity = ""
                     self._save_persistence()  # Persist baseline after delivery
 
                     print(f"[POLL→Feishu] session={session_id[:8]} done len={len(last_assistant_text)} card={card_id is not None}", flush=True)

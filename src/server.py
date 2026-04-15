@@ -189,20 +189,29 @@ class ClaudeSession:
                     text=True,
                 )
 
-                stdout, stderr = proc.communicate(input=content, timeout=None)
+                # Write input then close stdin so Claude starts processing
+                proc.stdin.write(content)
+                proc.stdin.close()
 
+                # Stream stdout line-by-line for real-time activity updates
                 with self._lock:
                     with open(self.buffer_file, "a") as buf:
-                        for line in stdout.strip().split("\n"):
-                            if line:
-                                buf.write(line + "\n")
-                                try:
-                                    data = json.loads(line)
-                                    self.messages.append(data)
-                                    self._parse_status(data)
-                                    broadcast_session_update(self.id, "message", data)
-                                except Exception:
-                                    pass
+                        for line in proc.stdout:
+                            line = line.rstrip("\n")
+                            if not line:
+                                continue
+                            buf.write(line + "\n")
+                            try:
+                                data = json.loads(line)
+                                self.messages.append(data)
+                                self._parse_status(data)
+                                broadcast_session_update(self.id, "message", data)
+                            except Exception:
+                                pass
+
+                proc.wait()
+                # Drain stderr to prevent pipe leak
+                _ = proc.stderr.read()
 
                 save_sessions_metadata()
                 self.status = "idle"
@@ -258,23 +267,28 @@ class ClaudeSession:
                 text=True,
             )
 
-            # Send the message
-            stdout, stderr = proc.communicate(input=content, timeout=None)
+            # Write input then close stdin so Claude starts processing
+            proc.stdin.write(content)
+            proc.stdin.close()
 
-            # Parse output and broadcast each message
+            # Stream stdout line-by-line for real-time activity updates
             with self._lock:
                 with open(self.buffer_file, "a") as buf:
-                    for line in stdout.strip().split("\n"):
-                        if line:
-                            buf.write(line + "\n")
-                            try:
-                                data = json.loads(line)
-                                self.messages.append(data)
-                                self._parse_status(data)
-                                # Broadcast each message for real-time updates
-                                broadcast_session_update(self.id, "message", data)
-                            except Exception:
-                                pass
+                    for line in proc.stdout:
+                        line = line.rstrip("\n")
+                        if not line:
+                            continue
+                        buf.write(line + "\n")
+                        try:
+                            data = json.loads(line)
+                            self.messages.append(data)
+                            self._parse_status(data)
+                            broadcast_session_update(self.id, "message", data)
+                        except Exception:
+                            pass
+
+            proc.wait()
+            _ = proc.stderr.read()
 
             # Save metadata to persist claude_session_id for recovery
             save_sessions_metadata()
