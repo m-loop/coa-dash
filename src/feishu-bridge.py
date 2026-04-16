@@ -25,6 +25,8 @@ import threading
 import traceback
 from datetime import datetime
 
+import hashlib
+
 import requests
 from lark_oapi import Client
 from lark_oapi.core.enum import LogLevel
@@ -71,6 +73,7 @@ class FeishuBridge:
         self._forward_baselines = {}  # session_id -> message count at forward time
         self._response_cards = {}  # session_id -> message_id of response card
         self._last_delivered_hash = {}  # session_id -> hash of last delivered text (dedup)
+        self._last_working_text = {}  # session_id -> last text shown on working card (throttle)
         self._running = False
 
         self._load_config()
@@ -115,6 +118,7 @@ class FeishuBridge:
                     json.dump({
                         "chat_session_map": self._chat_session_map,
                         "forward_baselines": self._forward_baselines,
+                        "last_delivered_hash": self._last_delivered_hash,
                         "mode": self._mode,
                         "last_saved": datetime.now().isoformat(),
                     }, f, indent=2)
@@ -130,6 +134,10 @@ class FeishuBridge:
             if baselines:
                 self._forward_baselines = baselines
                 print(f"[Bridge] Loaded {len(baselines)} baselines from persistence")
+            delivered = data.get("last_delivered_hash", {})
+            if delivered:
+                self._last_delivered_hash = delivered
+                print(f"[Bridge] Loaded {len(delivered)} delivery hashes from persistence")
         except Exception:
             pass
 
@@ -653,22 +661,27 @@ class FeishuBridge:
                 continue
             assistant_text = "\n\n".join(texts)
 
-            # Walk back to find the preceding user message
+            # Walk back to find the preceding user message with actual text
+            # Skip tool_result messages (they're also type="user" but have no user text)
             user_text = ""
             j = i - 1
             while j >= 0:
                 um = messages[j]
                 if um.get("type") == "user":
                     uc = um.get("message", {}).get("content", "")
+                    candidate = ""
                     if isinstance(uc, str):
-                        user_text = uc.strip()
+                        candidate = uc.strip()
                     elif isinstance(uc, list):
                         parts = []
                         for c in uc:
                             if isinstance(c, dict) and c.get("type") == "text":
                                 parts.append(c.get("text", "").strip())
-                        user_text = " ".join(p for p in parts if p)
-                    break
+                        candidate = " ".join(p for p in parts if p)
+                    if candidate:
+                        user_text = candidate
+                        break
+                    # Empty user msg (tool_result) — keep searching
                 j -= 1
 
             rounds.append((user_text, assistant_text))
@@ -723,6 +736,7 @@ class FeishuBridge:
             print(f"[FWD] session={session_id[:8]} content={content[:60]}", flush=True)
             # Clear dedup hash — new user message, expect new response
             self._last_delivered_hash.pop(session_id, None)
+            self._last_working_text.pop(session_id, None)
 
             resp = requests.post(
                 f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/message",
@@ -1077,25 +1091,6 @@ class FeishuBridge:
                         last_assistant_text = "\n\n".join(texts)
                         break
 
-                # If no text in new messages, check if there's a completed
-                # response in the full history (edge case: tool-only new msgs)
-                if not last_assistant_text and not is_working and new_count > 0:
-                    for msg in reversed(messages):
-                        if msg.get("type") != "assistant":
-                            continue
-                        content = msg.get("message", {}).get("content", [])
-                        if not isinstance(content, list):
-                            continue
-                        texts = []
-                        for c in content:
-                            if isinstance(c, dict) and c.get("type") == "text":
-                                text = c.get("text", "").strip()
-                                if text:
-                                    texts.append(text)
-                        if texts:
-                            last_assistant_text = "\n\n".join(texts)
-                            break
-
                 if not last_assistant_text:
                     time.sleep(2 if is_working else 6)
                     continue
@@ -1107,22 +1102,26 @@ class FeishuBridge:
                         self._replace_reaction(session_id, emoji)
                         last_emoji = emoji
 
-                    # Send/update card with streaming status
-                    if last_assistant_text:
-                        card_id = self._response_cards.get(session_id)
-                        chat_id_for_card = self._session_chat_map.get(session_id)
-                        if chat_id_for_card:
-                            if card_id:
-                                self._update_card(card_id, "Claude (working...)", last_assistant_text, "working")
-                            else:
-                                card_id = self._send_card(chat_id_for_card, "Claude (working...)", last_assistant_text, "working")
+                    # Throttle: skip card update if text hasn't changed
+                    prev_text = self._last_working_text.get(session_id, "")
+                    if last_assistant_text != prev_text:
+                        # Dedup: skip if this content was already delivered as a done card
+                        text_hash = hashlib.md5(last_assistant_text.encode()).hexdigest()[:12]
+                        if text_hash != self._last_delivered_hash.get(session_id):
+                            card_id = self._response_cards.get(session_id)
+                            chat_id_for_card = self._session_chat_map.get(session_id)
+                            if chat_id_for_card:
                                 if card_id:
-                                    self._response_cards[session_id] = card_id
+                                    self._update_card(card_id, "Claude (working...)", last_assistant_text, "working")
+                                else:
+                                    card_id = self._send_card(chat_id_for_card, "Claude (working...)", last_assistant_text, "working")
+                                    if card_id:
+                                        self._response_cards[session_id] = card_id
+                            self._last_working_text[session_id] = last_assistant_text
                     time.sleep(2)
                 else:
                     # Done — replace reaction with ✅, send card response
                     # Dedup: skip if same content was already delivered
-                    import hashlib
                     content_hash = hashlib.md5(last_assistant_text.encode()).hexdigest()[:12]
                     if content_hash == self._last_delivered_hash.get(session_id):
                         print(f"[POLL] {session_id[:8]} skip duplicate (hash={content_hash})", flush=True)
@@ -1143,6 +1142,7 @@ class FeishuBridge:
                     self._pending_reactions.pop(session_id, None)
                     self._current_reactions.pop(session_id, None)
                     self._last_delivered_hash[session_id] = content_hash
+                    self._last_working_text.pop(session_id, None)
                     last_emoji = ""
                     last_card_activity = ""
                     self._save_persistence()  # Persist baseline after delivery
