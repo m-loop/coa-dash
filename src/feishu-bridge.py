@@ -70,6 +70,7 @@ class FeishuBridge:
         self._current_reactions = {}  # session_id -> reaction_id (current status reaction)
         self._forward_baselines = {}  # session_id -> message count at forward time
         self._response_cards = {}  # session_id -> message_id of response card
+        self._last_delivered_hash = {}  # session_id -> hash of last delivered text (dedup)
         self._running = False
 
         self._load_config()
@@ -280,6 +281,8 @@ class FeishuBridge:
             self._cmd_status(lookup_key, chat_id)
         elif command == "/sessions":
             self._cmd_sessions(chat_id)
+        elif command == "/load":
+            self._cmd_load(lookup_key, chat_id, args)
         elif command == "/stop":
             self._cmd_stop(lookup_key, chat_id)
         elif command == "/compact":
@@ -294,6 +297,7 @@ class FeishuBridge:
                 "/unlink - Remove link\n"
                 "/stop - Stop current session task\n"
                 "/compact - Compress session context\n"
+                "/load [N] - Load last N rounds of conversation (default 3)\n"
                 "/ls [path] - List project directories\n"
                 "/list - Show all mappings\n"
                 "/status - Current session status\n"
@@ -596,7 +600,101 @@ class FeishuBridge:
         except Exception as e:
             self._send_text(chat_id, f"Error: {e}")
 
-    # ── API Helpers ───────────────────────────────────────────────────
+    def _cmd_load(self, lookup_key, chat_id, args):
+        """Load recent conversation rounds and display as cards"""
+        session_id = self._chat_session_map.get(lookup_key)
+        if not session_id:
+            self._send_text(chat_id, "No session linked. Use /link <session-id>")
+            return
+
+        try:
+            num_rounds = int(args.strip()) if args.strip() else 3
+            num_rounds = max(1, min(num_rounds, 10))  # Clamp 1-10
+        except ValueError:
+            num_rounds = 3
+
+        # Fetch history
+        try:
+            resp = requests.get(
+                f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/history?limit=200",
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                self._send_text(chat_id, f"Failed to fetch history (HTTP {resp.status_code})")
+                return
+            messages = resp.json().get("messages", [])
+        except Exception as e:
+            self._send_text(chat_id, f"Error fetching history: {e}")
+            return
+
+        # Extract conversation rounds: pair user→assistant messages
+        # Walk backwards collecting assistant texts with their preceding user messages
+        rounds = []
+        i = len(messages) - 1
+        while i >= 0 and len(rounds) < num_rounds:
+            msg = messages[i]
+
+            # Find assistant message with text
+            if msg.get("type") != "assistant":
+                i -= 1
+                continue
+            content = msg.get("message", {}).get("content", [])
+            if not isinstance(content, list):
+                i -= 1
+                continue
+            texts = []
+            for c in content:
+                if isinstance(c, dict) and c.get("type") == "text":
+                    text = c.get("text", "").strip()
+                    if text:
+                        texts.append(text)
+            if not texts:
+                i -= 1
+                continue
+            assistant_text = "\n\n".join(texts)
+
+            # Walk back to find the preceding user message
+            user_text = ""
+            j = i - 1
+            while j >= 0:
+                um = messages[j]
+                if um.get("type") == "user":
+                    uc = um.get("message", {}).get("content", "")
+                    if isinstance(uc, str):
+                        user_text = uc.strip()
+                    elif isinstance(uc, list):
+                        parts = []
+                        for c in uc:
+                            if isinstance(c, dict) and c.get("type") == "text":
+                                parts.append(c.get("text", "").strip())
+                        user_text = " ".join(p for p in parts if p)
+                    break
+                j -= 1
+
+            rounds.append((user_text, assistant_text))
+            i = j - 1
+
+        if not rounds:
+            self._send_text(chat_id, "No conversation history found.")
+            return
+
+        rounds.reverse()  # Chronological order
+
+        # Send as cards — one card per round
+        info = self._get_session_info(session_id)
+        project = info.get("projectName", info.get("title", "")) if info else ""
+
+        for idx, (user_msg, assistant_msg) in enumerate(rounds):
+            round_num = len(rounds) - idx
+            # Truncate for card limits
+            q = user_msg[:200] + ("..." if len(user_msg) > 200 else "")
+            a = assistant_msg[:3000] + ("...\n\n_(truncated)_" if len(assistant_msg) > 3000 else "")
+            card_content = f"**Q:** {q}\n\n---\n\n{a}"
+            title = f"💬 {project} — Round {round_num}" if project else f"💬 Round {round_num}"
+            self._send_card(chat_id, title, card_content, "done")
+
+        self._send_text(chat_id, f"📂 Loaded {len(rounds)} round(s)")
+
 
     def _get_session_info(self, session_id):
         try:
@@ -623,6 +721,8 @@ class FeishuBridge:
     def _forward_to_claude(self, session_id, content, chat_id, msg_id):
         try:
             print(f"[FWD] session={session_id[:8]} content={content[:60]}", flush=True)
+            # Clear dedup hash — new user message, expect new response
+            self._last_delivered_hash.pop(session_id, None)
 
             resp = requests.post(
                 f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/message",
@@ -1021,6 +1121,16 @@ class FeishuBridge:
                     time.sleep(2)
                 else:
                     # Done — replace reaction with ✅, send card response
+                    # Dedup: skip if same content was already delivered
+                    import hashlib
+                    content_hash = hashlib.md5(last_assistant_text.encode()).hexdigest()[:12]
+                    if content_hash == self._last_delivered_hash.get(session_id):
+                        print(f"[POLL] {session_id[:8]} skip duplicate (hash={content_hash})", flush=True)
+                        self._forward_baselines[session_id] = current_count
+                        self._save_persistence()
+                        time.sleep(6)
+                        continue
+
                     self._replace_reaction(session_id, "CheckMark")
 
                     # Always send a new card for the final response
@@ -1032,11 +1142,12 @@ class FeishuBridge:
                     self._forward_baselines[session_id] = current_count
                     self._pending_reactions.pop(session_id, None)
                     self._current_reactions.pop(session_id, None)
+                    self._last_delivered_hash[session_id] = content_hash
                     last_emoji = ""
                     last_card_activity = ""
                     self._save_persistence()  # Persist baseline after delivery
 
-                    print(f"[POLL→Feishu] session={session_id[:8]} done len={len(last_assistant_text)} card={card_id is not None}", flush=True)
+                    print(f"[POLL→Feishu] session={session_id[:8]} done len={len(last_assistant_text)} card={card_id is not None} hash={content_hash}", flush=True)
                     time.sleep(6)
 
             except (requests.ConnectionError, requests.Timeout) as e:
