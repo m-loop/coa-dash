@@ -163,6 +163,8 @@ class ClaudeSession:
         """Send message in background thread, returns immediately"""
         # Reject if a live Claude process is using this session
         if self.is_live():
+            # Roll back status set by send_claude_message
+            self.status = "idle"
             return {"error": "Session is busy (live Claude process active). Try again later."}
 
         def run():
@@ -185,7 +187,7 @@ class ClaudeSession:
                     cwd=self.cwd,
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
                     text=True,
                 )
 
@@ -210,8 +212,6 @@ class ClaudeSession:
                                 pass
 
                 proc.wait()
-                # Drain stderr to prevent pipe leak
-                _ = proc.stderr.read()
 
                 save_sessions_metadata()
                 self.status = "idle"
@@ -263,7 +263,7 @@ class ClaudeSession:
                 cwd=self.cwd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
                 text=True,
             )
 
@@ -288,10 +288,8 @@ class ClaudeSession:
                             pass
 
             proc.wait()
-            _ = proc.stderr.read()
 
             # Save metadata to persist claude_session_id for recovery
-            save_sessions_metadata()
 
             self.status = "idle"
             self.current_activity = "Done"
@@ -376,7 +374,7 @@ class ClaudeSession:
 
 # Global session manager
 claude_sessions = {}  # session_id -> ClaudeSession
-claude_sessions_lock = threading.Lock()
+claude_sessions_lock = threading.RLock()  # Reentrant: save_sessions_metadata called from within lock
 
 # SSE subscribers for real-time updates (v0.7.0)
 sse_subscribers = {}  # session_id -> list of (queue, thread) tuples
@@ -535,26 +533,26 @@ def stop_file_watcher(session_id):
 
 
 def save_sessions_metadata():
-    """Persist session metadata to disk"""
+    """Persist session metadata to disk (thread-safe, reentrant)"""
     try:
-        data = {
-            "sessions": [
-                {
-                    "id": s.id,
-                    "name": s.name,
-                    "cwd": s.cwd,
-                    "model": s.model,
-                    "buffer_file": s.buffer_file,
-                    "started_at": s.started_at,
-                    "claude_session_id": s.claude_session_id,  # For resuming
-                    "message_count": len(s.messages),
-                }
-                for s in claude_sessions.values()
-            ]
-        }
+        with claude_sessions_lock:
+            data = {
+                "sessions": [
+                    {
+                        "id": s.id,
+                        "name": s.name,
+                        "cwd": s.cwd,
+                        "model": s.model,
+                        "buffer_file": s.buffer_file,
+                        "started_at": s.started_at,
+                        "claude_session_id": s.claude_session_id,
+                        "message_count": len(s.messages),
+                    }
+                    for s in claude_sessions.values()
+                ]
+            }
         with open(CLAUDE_SESSIONS_METADATA_PATH, "w") as f:
             json.dump(data, f, indent=2)
-        print(f"[DEBUG] Saved metadata for {len(claude_sessions)} sessions")
     except Exception as e:
         print(f"[ERROR] Failed to save sessions metadata: {e}")
 
@@ -939,31 +937,21 @@ def send_claude_message(session_id, content):
         if session.status not in ["idle", "starting", "error"]:
             return {"error": f"Dashboard busy (status: {session.status})"}
 
+        # Atomic check+set: prevent concurrent messages to the same session
+        session.status = "working"
+        session.current_activity = "Sending via resume..." if session.claude_session_id else "Sending..."
         has_claude_link = bool(session.claude_session_id)
 
     # Outside lock: use --resume --print for all sessions
     # (/dev/pts injection doesn't work with Claude Code's React/Ink TUI)
     if has_claude_link:
         _persist_dashboard_message(session_id, content)
-        with claude_sessions_lock:
-            session = claude_sessions.get(session_id)
-            if session:
-                session.status = "working"
-                session.current_activity = "Sending via resume..."
-        if session:
-            result = session.send_message_async(content)
-            if isinstance(result, dict):
-                return result  # Error response (e.g. live session conflict)
-            return {"success": True, "message": "Sent via --resume", "injected": True}
-        return {"error": "Failed to send message"}
+        result = session.send_message_async(content)
+        if isinstance(result, dict):
+            return result  # Error response (e.g. live session conflict)
+        return {"success": True, "message": "Sent via --resume", "injected": True}
 
     # Dashboard-only session: send directly via Claude CLI
-    with claude_sessions_lock:
-        session = claude_sessions.get(session_id)
-        if session:
-            session.status = "working"
-            session.current_activity = "Sending..."
-
     result = session.send_message_async(content)
     if isinstance(result, dict):
         return result
@@ -2326,7 +2314,7 @@ class COADashHandler(BaseHTTPRequestHandler):
         session_status_match = re.match(r"/api/claudecode/sessions/([^/]+)/status$", path)
         if session_status_match:
             session_id = session_status_match.group(1)
-            session = sessions.get(session_id)
+            session = claude_sessions.get(session_id)
             if not session:
                 self.send_json({"error": "Session not found"}, 404)
                 return

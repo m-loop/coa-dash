@@ -512,7 +512,7 @@ class FeishuBridge:
                 cwd=cwd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
                 text=True,
             )
             stdout, stderr = proc.communicate(input="/compact\n/exit\n", timeout=120)
@@ -582,12 +582,16 @@ class FeishuBridge:
             if not sessions:
                 self._send_text(chat_id, "No sessions. Create one in dashboard first.")
                 return
+            # Sort by lastUsedAt (most recent first), fallback to startedAt
+            sessions.sort(key=lambda s: s.get("lastUsedAt") or s.get("startedAt") or 0, reverse=True)
             lines = ["Available Sessions:"]
             for s in sessions[:20]:
                 name = s.get("title", s.get("name", "?"))
                 status = s.get("status", "idle")
                 sid = s.get("id", "?")[:8]
-                lines.append(f"  {sid} {name} [{status}]")
+                # Show activity indicator for working sessions
+                act = f" - {s.get('activity', '')[:30]}" if status == "working" else ""
+                lines.append(f"  {sid} {name} [{status}]{act}")
             self._send_text(chat_id, "\n".join(lines))
         except Exception as e:
             self._send_text(chat_id, f"Error: {e}")
