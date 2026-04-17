@@ -123,6 +123,7 @@ class ClaudeSession:
         self.buffer_file = f"/tmp/claude-session-{session_id}.jsonl"
         self.started_at = time.time()
         self.messages = []
+        self.message_seq = 0  # Monotonic counter — never resets, unlike len(messages)
         self.last_used_at = None
         self._lock = threading.Lock()
 
@@ -207,6 +208,7 @@ class ClaudeSession:
                             try:
                                 data = json.loads(line)
                                 self.messages.append(data)
+                                self.message_seq += 1
                                 if len(self.messages) > self.MAX_MESSAGES:
                                     self.messages = self.messages[-self.MAX_MESSAGES:]
                                 self._parse_status(data)
@@ -345,7 +347,7 @@ class ClaudeSession:
             "activity": self.current_activity,
             "startedAt": self.started_at,
             "duration": int(time.time() - self.started_at),
-            "messageCount": len(self.messages),
+            "messageCount": self.message_seq,
             "claudeSessionId": self.claude_session_id,
             "lastUsedAt": self.last_used_at,
             "title": f"{project_name}/{self.name}",
@@ -480,6 +482,7 @@ class FileWatcher(threading.Thread):
                                     # Update session's in-memory messages
                                     with self.session._lock:
                                         self.session.messages.append(data)
+                                        self.session.message_seq += 1
                                         if len(self.session.messages) > ClaudeSession.MAX_MESSAGES:
                                             self.session.messages = self.session.messages[-ClaudeSession.MAX_MESSAGES:]
                                         self.session._parse_status(data)
@@ -492,7 +495,7 @@ class FileWatcher(threading.Thread):
 
                         # Update message count
                         with self.session._lock:
-                            self.session.message_count = len(self.session.messages)
+                            self.session.message_count = self.session.message_seq
                         broadcast_session_update(
                             self.session_id, "status", self.session.get_info()
                         )
@@ -553,7 +556,7 @@ def save_sessions_metadata():
                         "buffer_file": s.buffer_file,
                         "started_at": s.started_at,
                         "claude_session_id": s.claude_session_id,
-                        "message_count": len(s.messages),
+                        "message_count": s.message_seq,
                     }
                     for s in claude_sessions.values()
                 ]
