@@ -184,8 +184,14 @@ class FeishuBridge:
         self._running = True
 
         # Resume polling for existing mappings
+        # B9: Clear stale working card tracking (card_ids lost on restart)
+        notified_chats = set()
         for session_id in self._session_chat_map:
             self._start_poll(session_id)
+            chat_key = self._session_chat_map[session_id]
+            if chat_key not in notified_chats:
+                notified_chats.add(chat_key)
+                self._send_text(chat_key, "🔄 Bridge restarted. Previous working cards are stale.")
 
         print(f"[Bridge] Starting (mode={self._mode})...")
         try:
@@ -198,6 +204,22 @@ class FeishuBridge:
         self._running = False
         for session_id in list(self._poll_threads.keys()):
             self._stop_poll(session_id)
+        # B7: Kill orphan Claude child processes
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", "claude.*--resume"],
+                capture_output=True, text=True, timeout=3,
+            )
+            pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+            for pid in pids:
+                try:
+                    subprocess.run(["kill", pid], timeout=2)
+                except Exception:
+                    pass
+            if pids:
+                print(f"[Bridge] Killed {len(pids)} orphan Claude process(es)")
+        except Exception:
+            pass
         if self._ws_client:
             self._ws_client.stop()
         self._save_persistence()

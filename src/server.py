@@ -110,6 +110,7 @@ CLAUDE_PATH = "/home/aegis/.npm-global/bin/claude"
 
 class ClaudeSession:
     """Manages a Claude Code session using Claude's built-in session persistence"""
+    MAX_MESSAGES = 2000  # MEM: cap in-memory messages to prevent OOM
 
     def __init__(self, session_id, name, cwd, model=None):
         self.id = session_id
@@ -206,6 +207,8 @@ class ClaudeSession:
                             try:
                                 data = json.loads(line)
                                 self.messages.append(data)
+                                if len(self.messages) > self.MAX_MESSAGES:
+                                    self.messages = self.messages[-self.MAX_MESSAGES:]
                                 self._parse_status(data)
                                 broadcast_session_update(self.id, "message", data)
                             except Exception:
@@ -282,6 +285,8 @@ class ClaudeSession:
                         try:
                             data = json.loads(line)
                             self.messages.append(data)
+                            if len(self.messages) > self.MAX_MESSAGES:
+                                self.messages = self.messages[-self.MAX_MESSAGES:]
                             self._parse_status(data)
                             broadcast_session_update(self.id, "message", data)
                         except Exception:
@@ -475,6 +480,8 @@ class FileWatcher(threading.Thread):
                                     # Update session's in-memory messages
                                     with self.session._lock:
                                         self.session.messages.append(data)
+                                        if len(self.session.messages) > ClaudeSession.MAX_MESSAGES:
+                                            self.session.messages = self.session.messages[-ClaudeSession.MAX_MESSAGES:]
                                         self.session._parse_status(data)
                                     # Broadcast via SSE
                                     broadcast_session_update(
