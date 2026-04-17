@@ -92,6 +92,7 @@ class FeishuBridge:
             self._mode = config.get("mode", "dm")
             self._topic_group_id = config.get("topic_group_id", "")
             self._coa_dash_url = config.get("coa_dash_url", "http://localhost:8890")
+            self._allowed_chats = config.get("allowed_chats", [])  # Whitelist chat_ids
             self._chat_session_map = config.get("chat_session_map", {})
             if self._mode == "topic":
                 self._chat_session_map = config.get("session_topic_map", {})
@@ -219,6 +220,10 @@ class FeishuBridge:
             msg_type = msg.message_type or ""
             content_str = msg.content or ""
             msg_id = msg.message_id or ""
+
+            # Auth: reject messages from non-whitelisted chats
+            if self._allowed_chats and chat_id not in self._allowed_chats:
+                return
 
             # Dedup: skip WS redelivery (Feishu may push same event multiple times)
             now = time.time()
@@ -352,10 +357,18 @@ class FeishuBridge:
                 self._send_text(chat_id, f"Session `{session_id}` not found. Try /sessions")
                 return
 
+        # B5: Prevent multi-chat link to same session
+        existing_chat = self._session_chat_map.get(session_id)
+        if existing_chat and existing_chat != lookup_key:
+            self._send_text(chat_id, f"⚠️ Session already linked to another chat. /unlink there first.")
+            return
+
         # Remove old mapping if this chat was linked to something else
         old_session = self._chat_session_map.get(lookup_key)
         if old_session and old_session != session_id:
             self._stop_poll(old_session)
+            if old_session in self._session_chat_map:
+                del self._session_chat_map[old_session]
 
         self._chat_session_map[lookup_key] = session_id
         self._session_chat_map[session_id] = lookup_key
@@ -377,6 +390,12 @@ class FeishuBridge:
 
         project_name = parts[0]
         cwd = parts[1] if len(parts) > 1 else f"/home/aegis/vault/projects/{project_name}"
+
+        # Validate cwd: must be within /home/aegis/vault/projects/
+        cwd = os.path.realpath(cwd)
+        if not cwd.startswith("/home/aegis/vault/projects/"):
+            self._send_text(chat_id, "⚠️ Only /home/aegis/vault/projects/ allowed")
+            return
 
         # Auto-create project directory if not exists
         created = False
@@ -450,6 +469,14 @@ class FeishuBridge:
             if pids:
                 for pid in pids:
                     subprocess.run(["kill", pid], timeout=3)
+                # Reset server status to prevent session deadlock
+                try:
+                    requests.put(
+                        f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/status",
+                        json={"status": "idle"}, timeout=5,
+                    )
+                except Exception:
+                    pass
                 self._send_text(chat_id, f"⛔ Stopped (killed {len(pids)} process(es))")
             else:
                 # Also try killing by buffer file
@@ -767,6 +794,20 @@ class FeishuBridge:
             self._last_delivered_hash.pop(session_id, None)
             self._last_working_text.pop(session_id, None)
 
+            # Set baseline BEFORE POST so crash doesn't cause replay
+            try:
+                info_resp = requests.get(
+                    f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}",
+                    timeout=5,
+                )
+                if info_resp.status_code == 200:
+                    mc = info_resp.json().get("messageCount", 0)
+                    self._forward_baselines[session_id] = mc
+                    self._save_persistence()
+                    print(f"[FWD] baseline set before POST: messageCount={mc}", flush=True)
+            except Exception:
+                pass
+
             resp = requests.post(
                 f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/message",
                 json={"content": content},
@@ -779,26 +820,13 @@ class FeishuBridge:
                 if result.get("injected") or result.get("retained"):
                     pass  # Message was accepted despite error code
                 elif "busy" in result.get("error", "").lower():
-                    # Session busy → replace reaction with ⏰, no text
+                    # Session busy → reaction + text feedback
                     self._replace_reaction(session_id, "Alarm")
+                    self._send_text(chat_id, "⏰ 会话忙碌，请稍后重试")
                 else:
                     # Error → replace reaction with ❌
                     self._replace_reaction(session_id, "CrossMark")
                     self._pending_reactions.pop(session_id, None)
-            else:
-                # Record message count at forward time for polling baseline
-                try:
-                    info_resp = requests.get(
-                        f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}",
-                        timeout=5,
-                    )
-                    if info_resp.status_code == 200:
-                        mc = info_resp.json().get("messageCount", 0)
-                        self._forward_baselines[session_id] = mc
-                        self._save_persistence()  # Persist baseline
-                        print(f"[FWD] baseline for polling: messageCount={mc}", flush=True)
-                except Exception:
-                    pass
             # Response comes via polling thread
         except Exception as e:
             self._send_text(chat_id, f"⚠️ Forward failed: {e}")
@@ -1012,6 +1040,14 @@ class FeishuBridge:
                     timeout=10,
                 )
                 if info_resp.status_code != 200:
+                    # S9: Session deleted — stop poll and unlink
+                    if info_resp.status_code == 404:
+                        print(f"[POLL] {session_id[:8]}: session deleted, stopping poll", flush=True)
+                        old_chat = self._session_chat_map.pop(session_id, None)
+                        if old_chat:
+                            self._chat_session_map.pop(old_chat, None)
+                            self._save_persistence()
+                        break
                     # API down (coa-dash restarting?) — reset baseline to avoid
                     # replaying old messages when it comes back
                     if info_resp.status_code in (0, 502, 503):
