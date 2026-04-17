@@ -74,6 +74,7 @@ class FeishuBridge:
         self._response_cards = {}  # session_id -> message_id of response card
         self._last_delivered_hash = {}  # session_id -> hash of last delivered text (dedup)
         self._last_working_text = {}  # session_id -> last text shown on working card (throttle)
+        self._seen_msg_ids = {}  # msg_id -> timestamp, dedup WS redelivery (LRU, 5min TTL)
         self._running = False
 
         self._load_config()
@@ -219,11 +220,23 @@ class FeishuBridge:
             content_str = msg.content or ""
             msg_id = msg.message_id or ""
 
+            # Dedup: skip WS redelivery (Feishu may push same event multiple times)
+            now = time.time()
+            if msg_id and msg_id in self._seen_msg_ids:
+                print(f"[MSG] skip duplicate msg_id={msg_id[:16]}", flush=True)
+                return
+            if msg_id:
+                self._seen_msg_ids[msg_id] = now
+                # Prune entries older than 5 minutes
+                if len(self._seen_msg_ids) > 200:
+                    cutoff = now - 300
+                    self._seen_msg_ids = {k: v for k, v in self._seen_msg_ids.items() if v > cutoff}
+
             text = self._extract_text(content_str, msg_type)
             if not text:
                 return
 
-            print(f"[MSG] {chat_type} chat={chat_id[:8]}... text={text[:60]}")
+            print(f"[MSG] {chat_type} chat={chat_id[:8]}... msg_id={msg_id[:16]} text={text[:60]}")
 
             # DM and group chats both use chat_id as lookup key
             lookup_key = chat_id
@@ -594,16 +607,32 @@ class FeishuBridge:
             if not sessions:
                 self._send_text(chat_id, "No sessions. Create one in dashboard first.")
                 return
-            # Sort by lastUsedAt (most recent first), fallback to startedAt
-            sessions.sort(key=lambda s: s.get("lastUsedAt") or s.get("startedAt") or 0, reverse=True)
-            lines = ["Available Sessions:"]
+            # Sort by startedAt (newest first)
+            sessions.sort(key=lambda s: s.get("startedAt") or 0, reverse=True)
+            now = time.time()
+            lines = ["Sessions (newest first):"]
             for s in sessions[:20]:
                 name = s.get("title", s.get("name", "?"))
-                status = s.get("status", "idle")
                 sid = s.get("id", "?")[:8]
-                # Show activity indicator for working sessions
-                act = f" - {s.get('activity', '')[:30]}" if status == "working" else ""
-                lines.append(f"  {sid} {name} [{status}]{act}")
+                status = s.get("status", "idle")
+                # Show relative time instead of bare [idle]
+                sa = s.get("startedAt") or 0
+                ago = int(now - sa) if sa else 0
+                if ago < 60:
+                    time_str = f"{ago}s ago"
+                elif ago < 3600:
+                    time_str = f"{ago//60}m ago"
+                elif ago < 86400:
+                    time_str = f"{ago//3600}h ago"
+                else:
+                    time_str = f"{ago//86400}d ago"
+                if status == "working":
+                    act = s.get("activity", "")[:30]
+                    tag = f"⚡ {act}" if act else "⚡ working"
+                else:
+                    tag = time_str
+                mc = s.get("messageCount", 0)
+                lines.append(f"  {sid} {name} ({tag}, {mc} msgs)")
             self._send_text(chat_id, "\n".join(lines))
         except Exception as e:
             self._send_text(chat_id, f"Error: {e}")
@@ -693,20 +722,20 @@ class FeishuBridge:
 
         rounds.reverse()  # Chronological order
 
-        # Send as cards — one card per round
+        # Combine all rounds into a single card
         info = self._get_session_info(session_id)
         project = info.get("projectName", info.get("title", "")) if info else ""
 
+        sections = []
         for idx, (user_msg, assistant_msg) in enumerate(rounds):
             round_num = len(rounds) - idx
-            # Truncate for card limits
             q = user_msg[:200] + ("..." if len(user_msg) > 200 else "")
-            a = assistant_msg[:3000] + ("...\n\n_(truncated)_" if len(assistant_msg) > 3000 else "")
-            card_content = f"**Q:** {q}\n\n---\n\n{a}"
-            title = f"💬 {project} — Round {round_num}" if project else f"💬 Round {round_num}"
-            self._send_card(chat_id, title, card_content, "done")
+            a = assistant_msg[:2000] + ("...\n_(truncated)_" if len(assistant_msg) > 2000 else "")
+            sections.append(f"**Q:** {q}\n\n{a}")
 
-        self._send_text(chat_id, f"📂 Loaded {len(rounds)} round(s)")
+        card_content = "\n\n---\n\n".join(sections)
+        title = f"📂 {project} — Last {len(rounds)} rounds" if project else f"📂 Last {len(rounds)} rounds"
+        self._send_card(chat_id, title, card_content, "done")
 
 
     def _get_session_info(self, session_id):
@@ -1219,14 +1248,14 @@ class FeishuBridge:
         if "tool" in a:
             tool = a.split(":", 1)[-1].strip() if ":" in a else ""
             tool_map = {
-                "read": "OPEN_BOOK",      # not valid, fallback
-                "write": "MEMO",          # not valid, fallback
+                "read": "Pin",           # Pin = bookmarking what you read
+                "write": "Fire",
                 "edit": "Fire",
                 "bash": "BOMB",
                 "grep": "SMART",
                 "glob": "Pin",
-                "agent": "SHOCKED",
-                "web": "LOOKDOWN",        # not great, fallback
+                "agent": "STRIVE",
+                "web": "LOOKDOWN",
                 "search": "SMART",
             }
             for k, v in tool_map.items():
