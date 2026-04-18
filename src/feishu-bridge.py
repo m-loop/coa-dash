@@ -480,18 +480,36 @@ class FeishuBridge:
         if not session_id:
             self._send_text(chat_id, "No linked session.")
             return
-        # Kill any running claude process for this session
         import subprocess
         try:
-            result = subprocess.run(
-                ["pgrep", "-f", f"claude.*--resume.*{session_id}"],
-                capture_output=True, text=True, timeout=3
-            )
-            pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+            # Look up Claude's internal session ID for accurate pgrep matching
+            info = self._get_session_info(session_id)
+            claude_sid = info.get("claudeSessionId", "") if info else ""
+            pids = []
+            # Primary: match by Claude's internal session ID
+            if claude_sid:
+                result = subprocess.run(
+                    ["pgrep", "-f", f"claude.*--resume.*{claude_sid}"],
+                    capture_output=True, text=True, timeout=3
+                )
+                pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+            # Fallback: match by coa-dash session ID (for older sessions)
+            if not pids:
+                result = subprocess.run(
+                    ["pgrep", "-f", f"claude.*--resume.*{session_id}"],
+                    capture_output=True, text=True, timeout=3
+                )
+                pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
+            # Fallback: match by buffer file
+            if not pids:
+                result = subprocess.run(
+                    ["pgrep", "-f", f"claude-session-{session_id}"],
+                    capture_output=True, text=True, timeout=3
+                )
+                pids = [p.strip() for p in result.stdout.strip().split("\n") if p.strip()]
             if pids:
                 for pid in pids:
                     subprocess.run(["kill", pid], timeout=3)
-                # Reset server status to prevent session deadlock
                 try:
                     requests.put(
                         f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/status",
@@ -501,18 +519,7 @@ class FeishuBridge:
                     pass
                 self._send_text(chat_id, f"⛔ Stopped (killed {len(pids)} process(es))")
             else:
-                # Also try killing by buffer file
-                result2 = subprocess.run(
-                    ["pgrep", "-f", f"claude-session-{session_id}"],
-                    capture_output=True, text=True, timeout=3
-                )
-                pids2 = [p.strip() for p in result2.stdout.strip().split("\n") if p.strip()]
-                if pids2:
-                    for pid in pids2:
-                        subprocess.run(["kill", pid], timeout=3)
-                    self._send_text(chat_id, f"⛔ Stopped (killed {len(pids2)} process(es))")
-                else:
-                    self._send_text(chat_id, "No active process found. Session may already be idle.")
+                self._send_text(chat_id, "No active process found. Session may already be idle.")
         except Exception as e:
             self._send_text(chat_id, f"⚠️ Stop failed: {e}")
 
@@ -1262,14 +1269,25 @@ class FeishuBridge:
         """Check if a Claude process is still running for this session."""
         import subprocess
         try:
-            # Check for claude process with this session id in args
+            # Look up Claude's internal session ID
+            info = self._get_session_info(session_id)
+            claude_sid = info.get("claudeSessionId", "") if info else ""
+            # Primary: match by Claude's internal session ID
+            if claude_sid:
+                result = subprocess.run(
+                    ["pgrep", "-f", f"claude.*--resume.*{claude_sid}"],
+                    capture_output=True, text=True, timeout=3
+                )
+                if result.stdout.strip():
+                    return True
+            # Fallback: match by coa-dash session ID
             result = subprocess.run(
-                ["pgrep", "-f", f"claude.*--resume.*{session_id[:8]}"],
+                ["pgrep", "-f", f"claude.*--resume.*{session_id}"],
                 capture_output=True, text=True, timeout=3
             )
             if result.stdout.strip():
                 return True
-            # Also check by buffer file
+            # Fallback: match by buffer file
             result2 = subprocess.run(
                 ["pgrep", "-f", f"claude-session-{session_id}"],
                 capture_output=True, text=True, timeout=3
