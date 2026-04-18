@@ -663,23 +663,37 @@ class FeishuBridge:
             if not sessions:
                 self._send_text(chat_id, "No sessions. Create one in dashboard first.")
                 return
-            # Sort by startedAt (newest first)
-            sessions.sort(key=lambda s: s.get("startedAt") or 0, reverse=True)
             now = time.time()
 
-            # Group by project
+            # Group by project, keep only latest session per project
             projects = {}
             for s in sessions:
                 proj = s.get("projectName", s.get("title", s.get("name", "?")).split("/")[0])
-                projects.setdefault(proj, []).append(s)
+                if proj not in projects:
+                    projects[proj] = s
+                else:
+                    # Keep the one with most recent activity
+                    old_sa = projects[proj].get("startedAt") or 0
+                    new_sa = s.get("startedAt") or 0
+                    if new_sa > old_sa:
+                        projects[proj] = s
+
+            # Sort projects by session startedAt (newest first)
+            sorted_projects = sorted(
+                projects.items(),
+                key=lambda x: x[1].get("startedAt") or 0,
+                reverse=True,
+            )
 
             lines = []
-            for proj, proj_sessions in projects.items():
-                latest = proj_sessions[0]
-                sid = latest.get("id", "?")[:8]
-                name = latest.get("title", latest.get("name", "?"))
-                status = latest.get("status", "idle")
-                sa = latest.get("startedAt") or 0
+            for proj, s in sorted_projects:
+                sid = s.get("id", "?")[:8]
+                name = s.get("title", s.get("name", "?"))
+                # Strip project prefix from display name
+                if "/" in name:
+                    name = name.split("/", 1)[1]
+                status = s.get("status", "idle")
+                sa = s.get("startedAt") or 0
                 ago = int(now - sa) if sa else 0
                 if ago < 60:
                     time_str = f"{ago}s ago"
@@ -690,36 +704,12 @@ class FeishuBridge:
                 else:
                     time_str = f"{ago//86400}d ago"
                 if status == "working":
-                    act = latest.get("activity", "")[:30]
+                    act = s.get("activity", "")[:30]
                     tag = f"⚡ {act}" if act else "⚡ working"
                 else:
                     tag = time_str
-                mc = latest.get("messageCount", 0)
-                total = len(proj_sessions)
-                # Show project header with latest session
-                lines.append(f"📁 {proj} ({total} sessions)")
-                lines.append(f"  └ {sid} {name} ({tag}, {mc} msgs)")
-                # Show older sessions (up to 2 more)
-                for s in proj_sessions[1:3]:
-                    sid2 = s.get("id", "?")[:8]
-                    name2 = s.get("title", s.get("name", "?"))
-                    sa2 = s.get("startedAt") or 0
-                    ago2 = int(now - sa2) if sa2 else 0
-                    if ago2 < 3600:
-                        ts2 = f"{ago2//60}m ago"
-                    elif ago2 < 86400:
-                        ts2 = f"{ago2//3600}h ago"
-                    else:
-                        ts2 = f"{ago2//86400}d ago"
-                    mc2 = s.get("messageCount", 0)
-                    lines.append(f"  ├ {sid2} {name2} ({ts2}, {mc2} msgs)")
-                if total > 3:
-                    lines.append(f"  └ ... +{total - 3} more")
-                lines.append("")  # blank line between projects
-
-            # Remove trailing blank line
-            if lines and lines[-1] == "":
-                lines.pop()
+                mc = s.get("messageCount", 0)
+                lines.append(f"{sid} {proj}/{name} ({tag}, {mc} msgs)")
 
             self._send_text(chat_id, "\n".join(lines))
         except Exception as e:
