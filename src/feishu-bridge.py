@@ -1222,8 +1222,9 @@ class FeishuBridge:
                     # Always send a new card for the final response
                     card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
 
-                    if card_id:
-                        self._response_cards[session_id] = card_id
+                    # Clear working card ref — next message creates a fresh working card
+                    # instead of overwriting this done card
+                    self._response_cards.pop(session_id, None)
 
                     self._forward_baselines[session_id] = current_count
                     self._pending_reactions.pop(session_id, None)
