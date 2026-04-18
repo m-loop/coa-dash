@@ -337,6 +337,14 @@ class ClaudeSession:
     def get_info(self):
         """Get session info for API response"""
         project_name = os.path.basename(self.cwd) if self.cwd else "unknown"
+        # Determine last active time from Claude session file mtime
+        last_active = self.started_at
+        if self.claude_session_id:
+            fpath = get_claude_file_path(self.cwd, self.claude_session_id)
+            try:
+                last_active = os.path.getmtime(fpath)
+            except (OSError, FileNotFoundError):
+                pass
         return {
             "id": self.id,
             "name": self.name,
@@ -346,6 +354,7 @@ class ClaudeSession:
             "status": self.status,
             "activity": self.current_activity,
             "startedAt": self.started_at,
+            "lastActiveAt": last_active,
             "duration": int(time.time() - self.started_at),
             "messageCount": self.message_seq,
             "claudeSessionId": self.claude_session_id,

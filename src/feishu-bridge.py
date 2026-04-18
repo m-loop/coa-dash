@@ -672,16 +672,15 @@ class FeishuBridge:
                 if proj not in projects:
                     projects[proj] = s
                 else:
-                    # Keep the one with most recent activity
-                    old_sa = projects[proj].get("startedAt") or 0
-                    new_sa = s.get("startedAt") or 0
-                    if new_sa > old_sa:
+                    old_la = projects[proj].get("lastActiveAt") or projects[proj].get("startedAt") or 0
+                    new_la = s.get("lastActiveAt") or s.get("startedAt") or 0
+                    if new_la > old_la:
                         projects[proj] = s
 
-            # Sort projects by session startedAt (newest first)
+            # Sort projects by last active time (newest first)
             sorted_projects = sorted(
                 projects.items(),
-                key=lambda x: x[1].get("startedAt") or 0,
+                key=lambda x: x[1].get("lastActiveAt") or x[1].get("startedAt") or 0,
                 reverse=True,
             )
 
@@ -693,8 +692,8 @@ class FeishuBridge:
                 if "/" in name:
                     name = name.split("/", 1)[1]
                 status = s.get("status", "idle")
-                sa = s.get("startedAt") or 0
-                ago = int(now - sa) if sa else 0
+                la = s.get("lastActiveAt") or s.get("startedAt") or 0
+                ago = int(now - la) if la else 0
                 if ago < 60:
                     time_str = f"{ago}s ago"
                 elif ago < 3600:
