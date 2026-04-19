@@ -755,7 +755,7 @@ class FeishuBridge:
         try:
             sessions = self._get_available_sessions()
             if not sessions:
-                self._send_text(chat_id, "No sessions. Create one in dashboard first.")
+                self._send_text(chat_id, "No sessions found.")
                 return
             now = time.time()
 
@@ -766,15 +766,15 @@ class FeishuBridge:
                 if proj not in projects:
                     projects[proj] = s
                 else:
-                    old_la = projects[proj].get("lastActiveAt") or projects[proj].get("startedAt") or 0
-                    new_la = s.get("lastActiveAt") or s.get("startedAt") or 0
-                    if new_la > old_la:
+                    old_mt = projects[proj].get("mtime") or 0
+                    new_mt = s.get("mtime") or 0
+                    if new_mt > old_mt:
                         projects[proj] = s
 
-            # Sort projects by last active time (newest first)
+            # Sort projects by mtime (newest first)
             sorted_projects = sorted(
                 projects.items(),
-                key=lambda x: x[1].get("lastActiveAt") or x[1].get("startedAt") or 0,
+                key=lambda x: x[1].get("mtime") or 0,
                 reverse=True,
             )
 
@@ -787,9 +787,8 @@ class FeishuBridge:
                 name = s.get("title", s.get("name", "?"))
                 if "/" in name:
                     name = name.split("/", 1)[1]
-                status = s.get("status", "idle")
-                la = s.get("lastActiveAt") or s.get("startedAt") or 0
-                ago = int(now - la) if la else 0
+                mt = s.get("mtime") or 0
+                ago = int(now - mt) if mt else 0
                 if ago < 60:
                     time_str = f"{ago}s ago"
                 elif ago < 3600:
@@ -798,11 +797,10 @@ class FeishuBridge:
                     time_str = f"{ago // 3600}h ago"
                 else:
                     time_str = f"{ago // 86400}d ago"
-                if status == "working":
-                    act = s.get("activity", "")[:30]
-                    tag = f"⚡ {act}" if act else "⚡ working"
-                elif s.get("live"):
+                if s.get("isActiveInTerminal"):
                     tag = f"💻 terminal · {time_str}"
+                elif s.get("isActive"):
+                    tag = f"⚡ active · {time_str}"
                 else:
                     tag = time_str
                 mc = s.get("messageCount", 0)
@@ -932,8 +930,9 @@ class FeishuBridge:
 
     def _get_available_sessions(self):
         try:
+            # Use disk scan (includes all projects, not just imported sessions)
             resp = requests.get(
-                f"{self._coa_dash_url}/api/claudecode/sessions",
+                f"{self._coa_dash_url}/api/claudecode/available",
                 timeout=10,
             )
             return resp.json().get("sessions", [])

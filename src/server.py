@@ -993,14 +993,56 @@ def list_available_claude_sessions(cwd=None):
 
             # Decode project name from directory name
             # Format: -home-aegis-vault-projects-coa-dash -> /home/aegis/vault/projects/coa-dash
+            # Can't simply replace '-' with '/' because project names contain '-'
+            # Strategy: walk all directories under known base paths (home, vault/projects)
+            # and match the encoded form against the directory name
             project_name = project_dir_name
+            cwd_path = None
             if project_dir_name.startswith("-"):
-                # Try to extract meaningful project name
-                parts = project_dir_name[1:].split("-")
-                if len(parts) >= 3:
-                    project_name = parts[-1]  # Last part is usually the project name
+                # Claude Code encodes paths: / -> -, . -> --, joined with -
+                # e.g. /home/aegis/vault/projects/coa-dash -> -home-aegis-vault-projects-coa-dash
+                # e.g. /home/aegis/.openclaw/workspace -> -home-aegis--openclaw-workspace
+                # Can't naively decode because project names contain '-' (coa-dash, deep-reset-spa)
+                # Strategy: build reverse lookup from filesystem
+                if not hasattr(list_available_claude_sessions, '_path_cache') or \
+                   time.time() - getattr(list_available_claude_sessions, '_path_cache_time', 0) > 60:
+                    cache = {}
+                    scan_bases = [
+                        os.path.expanduser("~/vault/projects"),
+                        os.path.expanduser("~"),
+                        "/tmp",
+                    ]
+                    for base in scan_bases:
+                        if not os.path.isdir(base):
+                            continue
+                        if base.endswith("vault/projects"):
+                            depth = 1  # only direct children
+                        elif base == os.path.expanduser("~"):
+                            depth = 2  # ~/* and ~/*/*
+                        elif base == "/tmp":
+                            depth = 1  # /tmp/*
+                        else:
+                            depth = 1
+                        def walk(b, d):
+                            try:
+                                for entry in os.listdir(b):
+                                    full = os.path.join(b, entry)
+                                    if os.path.isdir(full):
+                                        enc = full.replace("/", "-")
+                                        cache[enc] = full
+                                        if d > 1:
+                                            walk(full, d - 1)
+                            except PermissionError:
+                                pass
+                        walk(base, depth)
+                    list_available_claude_sessions._path_cache = cache
+                    list_available_claude_sessions._path_cache_time = time.time()
+                cached = list_available_claude_sessions._path_cache
+                if project_dir_name in cached:
+                    cwd_path = cached[project_dir_name]
+                    project_name = os.path.basename(cwd_path)
                 else:
-                    project_name = project_dir_name
+                    project_name = project_dir_name.split("-")[-1] or project_dir_name
 
             # Scan session files in this project
             for f in os.listdir(project_dir):
@@ -1073,6 +1115,7 @@ def list_available_claude_sessions(cwd=None):
                     "slug": slug,
                     "projectName": project_name,
                     "projectDir": project_dir_name,
+                    "cwd": cwd_path,
                     "gitBranch": git_branch,
                     "mtime": mtime,
                     "mtimeAgo": format_time_ago(int(mtime * 1000)),
