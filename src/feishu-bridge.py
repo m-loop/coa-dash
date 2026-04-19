@@ -9,7 +9,7 @@ Modes:
   topic  - 话题群 mode, each topic = 1 session (future)
 
 Commands (in any mode):
-  /link <session-id>  - Link this chat to a Claude session
+  /link <#|id|name>   - Link this chat to a Claude session (use # from /sessions)
   /unlink             - Remove link
   /list               - Show all mappings
   /status             - Show session status
@@ -341,7 +341,7 @@ class FeishuBridge:
             self._send_text(chat_id,
                 "Claude Bridge Commands:\n\n"
                 "/new <project> [cwd] - Create session (auto-mkdir + git init)\n"
-                "/link <id|name> - Link chat to existing session\n"
+                "/link <#|id|name> - Link chat to session (# from /sessions)\n"
                 "/unlink - Remove link\n"
                 "/stop - Stop current session task\n"
                 "/compact - Compress session context\n"
@@ -357,8 +357,12 @@ class FeishuBridge:
 
     def _cmd_link(self, session_id, lookup_key, chat_id):
         if not session_id:
-            self._send_text(chat_id, "Usage: /link <session-id>")
+            self._send_text(chat_id, "Usage: /link <#|session-id|name>")
             return
+
+        # Resolve index shorthand (e.g. /link 3)
+        if hasattr(self, "_session_index_map") and session_id in self._session_index_map:
+            session_id = self._session_index_map[session_id]
 
         info = self._get_session_info(session_id)
         if not info:
@@ -684,11 +688,12 @@ class FeishuBridge:
                 reverse=True,
             )
 
+            # Build index map for /link <n> shorthand
+            index_map = {}
             lines = []
-            for proj, s in sorted_projects:
-                sid = s.get("id", "?")[:8]
+            for i, (proj, s) in enumerate(sorted_projects, 1):
+                index_map[str(i)] = s["id"]
                 name = s.get("title", s.get("name", "?"))
-                # Strip project prefix from display name
                 if "/" in name:
                     name = name.split("/", 1)[1]
                 status = s.get("status", "idle")
@@ -708,7 +713,10 @@ class FeishuBridge:
                 else:
                     tag = time_str
                 mc = s.get("messageCount", 0)
-                lines.append(f"{sid} {proj}/{name} ({tag}, {mc} msgs)")
+                lines.append(f"[{i}] {proj}/{name} ({tag}, {mc} msgs)")
+
+            # Store index map on instance for /link resolution
+            self._session_index_map = index_map
 
             self._send_text(chat_id, "\n".join(lines))
         except Exception as e:

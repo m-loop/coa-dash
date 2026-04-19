@@ -3,11 +3,12 @@
  *
  * Usage:
  *   node e2e-feishu.js [--cookies PATH] [--chat CHAT_NAME] [--headless|--headed]
+ *   node e2e-feishu.js --login              # Interactive login, saves cookies
  *
  * Prerequisites:
  *   - Bridge running (systemctl --user start coa-dash)
- *   - Valid Feishu cookies saved (run Phase C first to generate)
  *   - npx playwright install chromium
+ *   - Cookies: run --login first, or they auto-refresh after each test run
  */
 
 const { chromium } = require('playwright');
@@ -32,11 +33,23 @@ const CONFIG = {
 
 // Parse CLI args
 const args = process.argv.slice(2);
+let loginMode = false;
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--cookies') CONFIG.cookiesPath = args[++i];
   if (args[i] === '--chat') CONFIG.chatName = args[++i];
   if (args[i] === '--headless') CONFIG.headless = true;
   if (args[i] === '--headed') CONFIG.headless = false;
+  if (args[i] === '--login') loginMode = true;
+}
+
+// Save cookies to file for reuse
+function saveCookies(context) {
+  const cookiesPath = path.resolve(__dirname, CONFIG.cookiesPath);
+  return context.cookies().then(cookies => {
+    fs.mkdirSync(path.dirname(cookiesPath), { recursive: true });
+    fs.writeFileSync(cookiesPath, JSON.stringify(cookies, null, 2));
+    console.log(`Saved ${cookies.length} cookies to ${cookiesPath}`);
+  });
 }
 
 // ── Helpers ─────────────────────────────────────────────
@@ -314,21 +327,24 @@ async function T13_wsDedupLogs() {
   console.log('='.repeat(50));
 
   const cookiesPath = path.resolve(__dirname, CONFIG.cookiesPath);
-  if (!fs.existsSync(cookiesPath)) {
-    console.error(`\nNo cookies file at ${cookiesPath}`);
-    console.error('Run Phase C (Playwright MCP interactive) first to generate cookies.');
-    process.exit(1);
-  }
 
-  const browser = await chromium.launch({ headless: CONFIG.headless });
+  const browser = await chromium.launch({ headless: loginMode ? false : CONFIG.headless });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     locale: 'zh-CN',
   });
 
-  const cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf-8'));
-  await context.addCookies(cookies);
-  console.log(`Loaded ${cookies.length} cookies`);
+  // Load existing cookies if available
+  if (fs.existsSync(cookiesPath)) {
+    const cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf-8'));
+    await context.addCookies(cookies);
+    console.log(`Loaded ${cookies.length} cookies`);
+  } else if (!loginMode) {
+    console.error(`\nNo cookies file at ${cookiesPath}`);
+    console.error('Run: node e2e-feishu.js --login');
+    await browser.close();
+    process.exit(1);
+  }
 
   const page = await context.newPage();
 
@@ -337,9 +353,25 @@ async function T13_wsDedupLogs() {
 
   const url = page.url();
   if (url.includes('login') || url.includes('passport')) {
-    console.error('Not logged in -- cookies expired. Run Phase C again.');
+    if (loginMode) {
+      console.log('\nLogin page detected. Please log in manually...');
+      console.log('Waiting for login to complete (up to 3 minutes)...');
+      await page.waitForURL(url => !url.includes('login') && !url.includes('passport'), { timeout: 180_000 });
+      console.log('Login successful!');
+      await saveCookies(context);
+      await browser.close();
+      process.exit(0);
+    } else {
+      console.error('Not logged in -- cookies expired. Run: node e2e-feishu.js --login');
+      await browser.close();
+      process.exit(1);
+    }
+  } else if (loginMode) {
+    // Already logged in, just refresh cookies
+    console.log('Already logged in. Refreshing cookies...');
+    await saveCookies(context);
     await browser.close();
-    process.exit(1);
+    process.exit(0);
   }
 
   console.log(`Finding chat: ${CONFIG.chatName}`);
@@ -396,6 +428,9 @@ async function T13_wsDedupLogs() {
   const reportPath = path.resolve(__dirname, 'docs', 'FEISHU-E2E-REPORT-AUTO.json');
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
   console.log(`\nReport saved to ${reportPath}`);
+
+  // Auto-refresh cookies after successful run
+  await saveCookies(context);
 
   await browser.close();
   if (fail > 0) process.exit(1);
