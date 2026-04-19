@@ -353,6 +353,7 @@ class ClaudeSession:
             "model": self.model,
             "status": self.status,
             "activity": self.current_activity,
+            "live": self.is_live(),
             "startedAt": self.started_at,
             "lastActiveAt": last_active,
             "duration": int(time.time() - self.started_at),

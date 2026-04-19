@@ -800,6 +800,8 @@ class FeishuBridge:
                 if status == "working":
                     act = s.get("activity", "")[:30]
                     tag = f"⚡ {act}" if act else "⚡ working"
+                elif s.get("live"):
+                    tag = f"💻 terminal · {time_str}"
                 else:
                     tag = time_str
                 mc = s.get("messageCount", 0)
