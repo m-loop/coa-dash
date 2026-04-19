@@ -134,6 +134,7 @@ class FeishuBridge:
         self._response_cards = {}  # session_id -> message_id of response card
         self._last_delivered_hash = {}  # session_id -> hash of last delivered text (dedup)
         self._last_working_text = {}  # session_id -> last text shown on working card (throttle)
+        self._prev_live = {}  # session_id -> bool, previous terminal live state
         self._seen_msg_ids = {}  # msg_id -> timestamp, dedup WS redelivery (LRU, 5min TTL)
         self._running = False
 
@@ -945,6 +946,7 @@ class FeishuBridge:
             # Clear dedup hash — new user message, expect new response
             self._last_delivered_hash.pop(session_id, None)
             self._last_working_text.pop(session_id, None)
+            self._prev_live.pop(session_id, None)
 
             # Set baseline BEFORE POST so crash doesn't cause replay
             try:
@@ -1222,6 +1224,7 @@ class FeishuBridge:
             del self._poll_threads[session_id]
         if session_id in self._poll_stop:
             del self._poll_stop[session_id]
+        self._prev_live.pop(session_id, None)
         print(f"[INFO] Polling stopped: {session_id[:8]}")
 
     def _poll_loop(self, session_id):
@@ -1267,6 +1270,18 @@ class FeishuBridge:
                 current_count = info.get("messageCount", 0)
                 is_working = info.get("status") in ("working", "starting")
                 activity = info.get("activity", "")
+                is_live = info.get("live", False)
+
+                # State change notification: terminal open/close
+                prev_live = self._prev_live.get(session_id)
+                if prev_live is not None and prev_live != is_live:
+                    notify_chat = self._session_chat_map.get(session_id)
+                    if notify_chat:
+                        if is_live:
+                            self._send_text(notify_chat, "💻 检测到终端活动")
+                        else:
+                            self._send_text(notify_chat, "🔌 终端已关闭")
+                self._prev_live[session_id] = is_live
 
                 # No baseline yet
                 if baseline_count is None:

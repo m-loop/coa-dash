@@ -48,15 +48,17 @@
 | W5.4 | Terminal live detection (/proc scan) | ✅ 04-19 |
 | W5.5 | Three-tier status: ⚡ working / 💻 terminal / offline | ✅ 04-19 |
 
-### W6: Next (Backlog)
+### W6: Smart Notifications (v0.8.1) 📋
 | ID | Feature | Status | Priority |
 |----|---------|--------|----------|
-| W6.1 | New session form card (Phase 1 of interactive cards) | 📋 Planned | Medium |
-| W6.2 | Control panel auto-refresh on status change | 📋 Planned | Medium |
-| W6.3 | Stale session detection (process dead but status stuck) | 📋 Known Issue | High |
-| W6.4 | File/image forwarding | 📋 Planned | Low |
-| W6.5 | Feishu webhook integration | 📋 Planned | Low |
-| W6.6 | Cron job system for Claude tasks | 📋 Planned | Low |
+| W6.1 | Push notification on terminal open (offline→💻) | 📋 Planned | High |
+| W6.2 | Push notification on terminal close (💻→offline) | 📋 Planned | High |
+| W6.3 | Auto-refresh sessions card on status change | 📋 Planned | Medium |
+| W6.4 | Stale session detection (process dead but status stuck) | 📋 Known Issue | High |
+| W6.5 | New session form card (Phase 1 of interactive cards) | 📋 Planned | Medium |
+| W6.6 | File/image forwarding | 📋 Planned | Low |
+| W6.7 | Feishu webhook integration | 📋 Planned | Low |
+| W6.8 | Cron job system for Claude tasks | 📋 Planned | Low |
 
 ---
 
