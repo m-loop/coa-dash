@@ -31,7 +31,7 @@ import requests
 from lark_oapi import Client
 from lark_oapi.core.enum import LogLevel
 from lark_oapi.event.dispatcher_handler import EventDispatcherHandler
-from lark_oapi.ws.client import Client as WsClient
+from lark_oapi.ws.client import Client as WsClient, MessageType
 from lark_oapi.api.im.v1 import (
     CreateMessageRequest,
     CreateMessageRequestBody,
@@ -41,12 +41,72 @@ from lark_oapi.api.im.v1 import (
     PatchMessageRequest,
     PatchMessageRequestBody,
 )
+from lark_oapi.event.callback.model.p2_card_action_trigger import (
+    P2CardActionTrigger,
+    P2CardActionTriggerResponse,
+)
 
 # ── Config paths ──────────────────────────────────────────────────────
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(_BASE_DIR, "config", "feishu-bridge.json")
 PERSIST_PATH = os.path.join(_BASE_DIR, "config", "feishu-persistence.json")
+
+
+# ── Monkey-patch WsClient to handle CARD messages ────────────────────
+# SDK ignores CARD messages by default (ws/client.py returns early).
+# We patch to route them through the same dispatcher as EVENT messages.
+_original_handle_data_frame = WsClient._handle_data_frame
+
+
+async def _patched_handle_data_frame(self, frame):
+    from lark_oapi.ws.client import _get_by_key, HEADER_SUM, HEADER_SEQ, HEADER_MESSAGE_ID
+    from lark_oapi.ws.client import HEADER_TRACE_ID, HEADER_TYPE, HEADER_BIZ_RT, UTF_8
+    from lark_oapi.ws.model import Response
+    from lark_oapi.core.json import JSON
+    import http
+    import base64
+
+    hs = frame.headers
+    msg_id = _get_by_key(hs, HEADER_MESSAGE_ID)
+    trace_id = _get_by_key(hs, HEADER_TRACE_ID)
+    sum_ = _get_by_key(hs, HEADER_SUM)
+    seq = _get_by_key(hs, HEADER_SEQ)
+    type_ = _get_by_key(hs, HEADER_TYPE)
+
+    pl = frame.payload
+    if int(sum_) > 1:
+        pl = self._combine(msg_id, int(sum_), int(seq), pl)
+        if pl is None:
+            return
+
+    message_type = MessageType(type_)
+
+    resp = Response(code=http.HTTPStatus.OK)
+    try:
+        start = int(round(time.time() * 1000))
+        if message_type in (MessageType.EVENT, MessageType.CARD):
+            result = self._event_handler.do_without_validation(pl)
+        else:
+            return
+        end = int(round(time.time() * 1000))
+        header = hs.add()
+        header.key = HEADER_BIZ_RT
+        header.value = str(end - start)
+        if result is not None:
+            resp.data = base64.b64encode(JSON.marshal(result).encode(UTF_8))
+    except Exception as e:
+        print(f"[WS] ERROR in patched handle_data_frame: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        resp = Response(code=http.HTTPStatus.INTERNAL_SERVER_ERROR)
+
+    frame.payload = JSON.marshal(resp).encode(UTF_8)
+    await self._write_message(frame.SerializeToString())
+
+
+WsClient._handle_data_frame = _patched_handle_data_frame
+print("[PATCH] WsClient._handle_data_frame monkey-patched for CARD support", flush=True)
 
 
 class FeishuBridge:
@@ -158,6 +218,7 @@ class FeishuBridge:
             EventDispatcherHandler
             .builder("", "")  # encrypt_key, verification_token (empty for WS)
             .register_p2_im_message_receive_v1(self._on_message_receive)
+            .register_p2_card_action_trigger(self._on_card_action)
             .build()
         )
 
@@ -191,7 +252,7 @@ class FeishuBridge:
             chat_key = self._session_chat_map[session_id]
             if chat_key not in notified_chats:
                 notified_chats.add(chat_key)
-                self._send_text(chat_key, "🔄 Bridge restarted. Previous working cards are stale.")
+                pass  # Silent restart — don't spam chats
 
         print(f"[Bridge] Starting (mode={self._mode})...")
         try:
@@ -290,6 +351,47 @@ class FeishuBridge:
             print(f"[ERROR] Message handler failed: {e}")
             traceback.print_exc()
 
+    def _on_card_action(self, event):
+        """Handle card button clicks from Feishu interactive cards."""
+        try:
+            data = event.event
+            action = data.action
+            value = action.value or {}
+            chat_id = data.context.open_chat_id if data.context else None
+            if not chat_id:
+                return P2CardActionTriggerResponse()
+
+            cmd = value.get("action", "")
+            lookup_key = chat_id
+
+            if cmd == "link":
+                session_id = value.get("session_id", "")
+                self._cmd_link(session_id, lookup_key, chat_id)
+            elif cmd == "stop":
+                self._cmd_stop(lookup_key, chat_id)
+            elif cmd == "unlink":
+                self._cmd_unlink(lookup_key, chat_id)
+            elif cmd == "sessions":
+                self._cmd_sessions(chat_id)
+            elif cmd == "load":
+                rounds = str(value.get("rounds", 3))
+                self._cmd_load(lookup_key, chat_id, rounds)
+            elif cmd == "compact":
+                self._cmd_compact(lookup_key, chat_id)
+            elif cmd == "panel":
+                self._send_control_panel(chat_id)
+            elif cmd == "new":
+                self._send_text(chat_id,
+                    "Create a new session:\n/new <project-name> [cwd]")
+            else:
+                self._send_text(chat_id, f"Unknown action: {cmd}")
+
+            return P2CardActionTriggerResponse({"toast": {"type": "info", "content": "Done"}})
+        except Exception as e:
+            print(f"[ERROR] Card action handler failed: {e}")
+            traceback.print_exc()
+            return P2CardActionTriggerResponse()
+
     def _extract_text(self, content_str, msg_type):
         try:
             data = json.loads(content_str) if isinstance(content_str, str) else content_str
@@ -326,7 +428,7 @@ class FeishuBridge:
         elif command == "/list":
             self._cmd_list(chat_id)
         elif command == "/status":
-            self._cmd_status(lookup_key, chat_id)
+            self._send_control_panel(chat_id)
         elif command == "/sessions":
             self._cmd_sessions(chat_id)
         elif command == "/load":
@@ -338,20 +440,7 @@ class FeishuBridge:
         elif command == "/ls":
             self._cmd_ls(chat_id, args)
         elif command == "/help":
-            self._send_text(chat_id,
-                "Claude Bridge Commands:\n\n"
-                "/new <project> [cwd] - Create session (auto-mkdir + git init)\n"
-                "/link <#|id|name> - Link chat to session (# from /sessions)\n"
-                "/unlink - Remove link\n"
-                "/stop - Stop current session task\n"
-                "/compact - Compress session context\n"
-                "/load [N] - Load last N rounds of conversation (default 3)\n"
-                "/ls [path] - List project directories\n"
-                "/list - Show all mappings\n"
-                "/status - Current session status\n"
-                "/sessions - List available sessions\n"
-                "/help - This message"
-            )
+            self._send_control_panel(chat_id)
         else:
             self._send_text(chat_id, "Unknown command. Try /help")
 
@@ -691,6 +780,7 @@ class FeishuBridge:
             # Build index map for /link <n> shorthand
             index_map = {}
             lines = []
+            link_buttons = []
             for i, (proj, s) in enumerate(sorted_projects, 1):
                 index_map[str(i)] = s["id"]
                 name = s.get("title", s.get("name", "?"))
@@ -702,23 +792,25 @@ class FeishuBridge:
                 if ago < 60:
                     time_str = f"{ago}s ago"
                 elif ago < 3600:
-                    time_str = f"{ago//60}m ago"
+                    time_str = f"{ago // 60}m ago"
                 elif ago < 86400:
-                    time_str = f"{ago//3600}h ago"
+                    time_str = f"{ago // 3600}h ago"
                 else:
-                    time_str = f"{ago//86400}d ago"
+                    time_str = f"{ago // 86400}d ago"
                 if status == "working":
                     act = s.get("activity", "")[:30]
                     tag = f"⚡ {act}" if act else "⚡ working"
                 else:
                     tag = time_str
                 mc = s.get("messageCount", 0)
-                lines.append(f"[{i}] {proj}/{name} ({tag}, {mc} msgs)")
+                lines.append(f"**{i}. {proj}/{name}** ({tag}, {mc} msgs)")
+                link_buttons.append(self._btn(str(i), "link", session_id=s["id"]))
 
             # Store index map on instance for /link resolution
             self._session_index_map = index_map
 
-            self._send_text(chat_id, "\n".join(lines))
+            content = "\n\n".join(lines)
+            self._send_card(chat_id, "Sessions", content, "done", link_buttons)
         except Exception as e:
             self._send_text(chat_id, f"Error: {e}")
 
@@ -977,32 +1069,51 @@ class FeishuBridge:
     # ── Card Messages ──────────────────────────────────────────────────
 
     @staticmethod
-    def _build_card_json(title, content, status="done"):
-        """Build Feishu card JSON 2.0 structure"""
-        # Truncate content for card display
+    def _build_card_json(title, content, status="done", buttons=None):
+        """Build Feishu card JSON 2.0 structure with optional buttons."""
         display = content[:3500] if len(content) > 3500 else content
-        # Escape any special chars for JSON
+        elements = [{"tag": "markdown", "content": display}]
+        if buttons:
+            columns = []
+            for btn in buttons:
+                columns.append({
+                    "tag": "column",
+                    "width": "auto",
+                    "elements": [btn],
+                })
+            elements.append({
+                "tag": "column_set",
+                "flex_mode": "flow",
+                "columns": columns,
+            })
         card = {
             "schema": "2.0",
             "header": {
                 "title": {"tag": "plain_text", "content": title},
-                "template": "blue" if status == "working" else "green" if status == "done" else "red",
+                "template": "blue" if status == "working" else "green" if status == "done" else "turquoise",
             },
-            "body": {
-                "elements": [
-                    {
-                        "tag": "markdown",
-                        "content": display,
-                    }
-                ]
-            },
+            "body": {"elements": elements},
         }
         return json.dumps(card)
 
-    def _send_card(self, chat_id, title, content, status="done"):
+    @staticmethod
+    def _btn(label, action, **extra):
+        """Build a button element for card JSON 2.0."""
+        value = {"action": action}
+        value.update(extra)
+        btn_type = "danger" if action in ("stop", "unlink") else "primary" if action == "link" else "default"
+        return {
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": label},
+            "type": btn_type,
+            "size": "small",
+            "behaviors": [{"type": "callback", "value": value}],
+        }
+
+    def _send_card(self, chat_id, title, content, status="done", buttons=None):
         """Send an interactive card message. Returns message_id."""
         try:
-            card_content = self._build_card_json(title, content, status)
+            card_content = self._build_card_json(title, content, status, buttons)
             request_body = (
                 CreateMessageRequestBody.builder()
                 .receive_id(chat_id)
@@ -1019,10 +1130,8 @@ class FeishuBridge:
             resp = self._lark_client.im.v1.message.create(req)
             if not resp.success():
                 print(f"[WARN] Card send failed: {resp.code} {resp.msg}")
-                # Fallback to plain text
                 return self._send_text(chat_id, content[:4000])
             msg_id = resp.data.message_id if resp.data else None
-            print(f"[CARD] sent card chat={chat_id[:8]} msg_id={msg_id[:16] if msg_id else 'None'}", flush=True)
             return msg_id
         except Exception as e:
             print(f"[ERROR] Card send: {e}")
@@ -1040,11 +1149,51 @@ class FeishuBridge:
             if not resp.success():
                 print(f"[WARN] Card update failed: {resp.code} {resp.msg}")
                 return False
-            print(f"[CARD] updated card msg={message_id[:16]} status={status}", flush=True)
             return True
         except Exception as e:
             print(f"[WARN] Card update: {e}")
             return False
+
+    # ── Control Panel Card ─────────────────────────────────────────────
+
+    def _send_control_panel(self, chat_id):
+        """Send interactive control panel card based on current link status."""
+        lookup_key = chat_id
+        session_id = self._chat_session_map.get(lookup_key)
+
+        if session_id:
+            info = self._get_session_info(session_id)
+            if info:
+                name = info.get("title", info.get("name", session_id[:8]))
+                status = info.get("status", "idle")
+                mc = info.get("messageCount", 0)
+                la = info.get("lastActiveAt") or info.get("startedAt") or 0
+                ago = int(time.time() - la) if la else 0
+                if ago < 60:
+                    time_str = f"{ago}s ago"
+                elif ago < 3600:
+                    time_str = f"{ago // 60}m ago"
+                else:
+                    time_str = f"{ago // 3600}h ago"
+                status_emoji = "working" if status == "working" else "idle"
+                content = f"**{name}**\n{status_emoji} · {mc} msgs · {time_str}"
+            else:
+                content = f"Session `{session_id[:8]}` (details unavailable)"
+
+            buttons = [
+                self._btn("Stop", "stop"),
+                self._btn("History", "load", rounds=3),
+                self._btn("Compact", "compact"),
+                self._btn("Unlink", "unlink"),
+                self._btn("Sessions", "sessions"),
+            ]
+            self._send_card(chat_id, "Claude Bridge", content, "done", buttons)
+        else:
+            buttons = [
+                self._btn("Sessions", "sessions"),
+                self._btn("New", "new"),
+            ]
+            self._send_card(chat_id, "Claude Bridge", "No session linked", "done", buttons)
 
     # ── Polling (Claude → Feishu) ─────────────────────────────────────
 
