@@ -747,7 +747,18 @@ def _get_session_from_disk(session_id):
 
 
 def _is_session_in_terminal(session_id, project_path):
-    """Check if a session has an active Claude process via /proc scan"""
+    """Check if a specific session has an active Claude process.
+
+    Two-step verification:
+    1. Find Claude processes whose cwd matches the project path
+    2. Check if the session's JSONL file was modified recently (< 5 min)
+    This uniquely identifies which session is active within a project.
+    """
+    if not project_path or project_path.startswith("-"):
+        return False
+    target_cwd = project_path.rstrip("/")
+    # Step 1: check if any Claude process is in this project directory
+    claude_in_project = False
     try:
         for pid_dir in os.listdir("/proc"):
             if not pid_dir.isdigit():
@@ -757,16 +768,23 @@ def _is_session_in_terminal(session_id, project_path):
                 if "claude" not in cmdline:
                     continue
                 cwd_link = os.readlink(f"/proc/{pid_dir}/cwd")
-                # Check if cwd matches project
-                if isinstance(project_path, str) and project_path.startswith("-"):
-                    # encoded path, can't easily compare
-                    continue
-                if cwd_link and project_path and cwd_link == project_path:
-                    return True
+                if cwd_link.rstrip("/") == target_cwd:
+                    claude_in_project = True
+                    break
             except (FileNotFoundError, PermissionError):
                 continue
     except Exception:
         pass
+    if not claude_in_project:
+        return False
+    # Step 2: check if this specific session file was modified recently
+    claude_projects_dir = os.path.expanduser("~/.claude/projects")
+    target_file = session_id + ".jsonl"
+    for project_dir_name in os.listdir(claude_projects_dir):
+        target_path = os.path.join(claude_projects_dir, project_dir_name, target_file)
+        if os.path.exists(target_path):
+            mtime = os.stat(target_path).st_mtime
+            return (time.time() - mtime) < 300  # active if modified in last 5 min
     return False
 
 
@@ -1085,20 +1103,57 @@ def _persist_dashboard_message(session_id, content):
     session.messages.append(entry)
 
 
+def _send_disk_session_message(session_id, content):
+    """Send message to a disk-scanned (unimported) session"""
+    disk_info = _get_session_from_disk(session_id)
+    if not disk_info:
+        return {"error": "Session not found"}
+
+    cwd_path = disk_info.get("cwd")
+    if not cwd_path:
+        return {"error": "Session has no working directory"}
+
+    # If terminal is live, write to pending file (terminal reads it on startup)
+    if disk_info.get("isActiveInTerminal"):
+        write_notification_file(session_id, content)
+        return {"success": True, "message": "Sent via pending file", "injected": True, "retained": True}
+
+    # No live terminal: run claude --resume --print in background
+    def run():
+        try:
+            cmd = [CLAUDE_PATH, "--print", "--verbose", "--output-format", "stream-json",
+                   "--dangerously-skip-permissions", "--resume", session_id]
+            proc = subprocess.Popen(
+                cmd, cwd=cwd_path,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL, text=True,
+            )
+            proc.stdin.write(content)
+            proc.stdin.close()
+            for _ in proc.stdout:
+                pass
+            proc.wait()
+        except Exception:
+            pass
+
+    threading.Thread(target=run, daemon=True).start()
+    return {"success": True, "message": "Sent via --resume", "injected": True}
+
+
 def send_claude_message(session_id, content):
     """Send message to session, inject or retain if terminal linked"""
     with claude_sessions_lock:
         session = claude_sessions.get(session_id)
-        if not session:
-            return {"error": "Session not found"}
+    if not session:
+        return _send_disk_session_message(session_id, content)
 
-        if session.status not in ["idle", "starting", "error"]:
-            return {"error": f"Dashboard busy (status: {session.status})"}
+    if session.status not in ["idle", "starting", "error"]:
+        return {"error": f"Dashboard busy (status: {session.status})"}
 
-        # Atomic check+set: prevent concurrent messages to the same session
-        session.status = "working"
-        session.current_activity = "Sending via resume..." if session.claude_session_id else "Sending..."
-        has_claude_link = bool(session.claude_session_id)
+    # Atomic check+set: prevent concurrent messages to the same session
+    session.status = "working"
+    session.current_activity = "Sending via resume..." if session.claude_session_id else "Sending..."
+    has_claude_link = bool(session.claude_session_id)
 
     # Outside lock: use --resume --print for all sessions
     # (/dev/pts injection doesn't work with Claude Code's React/Ink TUI)
@@ -1233,22 +1288,7 @@ def list_available_claude_sessions(cwd=None):
                 )
 
                 # Check if session is active in terminal
-                is_active_in_terminal = False
-                time_since_mtime = time.time() - mtime
-                if time_since_mtime < 30:
-                    is_active_in_terminal = True
-
-                try:
-                    result = subprocess.run(
-                        ["pgrep", "-f", f"claude.*--resume.*{session_id[:8]}"],
-                        capture_output=True,
-                        text=True,
-                        timeout=2
-                    )
-                    if result.returncode == 0 and result.stdout.strip():
-                        is_active_in_terminal = True
-                except Exception:
-                    pass
+                is_active_in_terminal = _is_session_in_terminal(session_id, cwd_path or project_dir_name)
 
                 sessions.append({
                     "id": session_id,
@@ -1263,7 +1303,7 @@ def list_available_claude_sessions(cwd=None):
                     "size": size,
                     "messageCount": message_count,
                     "firstMessage": first_user_msg,
-                    "isActive": is_active_in_dashboard or is_active_in_terminal,
+                    "isActive": is_active_in_terminal,
                     "isActiveInDashboard": is_active_in_dashboard,
                     "isActiveInTerminal": is_active_in_terminal,
                     "title": f"{project_name}/{slug}",
