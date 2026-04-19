@@ -616,6 +616,7 @@ def load_sessions_metadata():
                                 session.messages.append(json.loads(line.strip()))
                             except Exception:
                                 pass
+                    session.message_seq = len(session.messages)
                 except Exception:
                     pass
 
