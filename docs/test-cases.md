@@ -1,8 +1,11 @@
-# Test Case Design - COA-dash v0.5.4
+# Test Case Design - COA-dash Dashboard (Web UI)
 
-**Version**: 0.5.4  
-**Date**: 2026-04-01  
-**Status**: Draft
+**Version**: 0.5.5
+**Date**: 2026-04-01
+**Status**: Superseded for dashboard; see `test-cases-feishu-bridge.md` for bridge tests
+
+> **Note**: This document covers the COA-dash web dashboard UI tests (Agents/Tasks/OpenCode/Config tabs).
+> For Feishu bridge E2E tests (commands, card buttons, message forwarding, resilience), see [test-cases-feishu-bridge.md](test-cases-feishu-bridge.md).
 
 ---
 
