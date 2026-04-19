@@ -466,7 +466,7 @@ class FeishuBridge:
                        or s.get("title", "").lower().startswith(session_id.lower())]
             if matches:
                 # Pick the most recent session
-                matches.sort(key=lambda s: s.get("startedAt", 0), reverse=True)
+                matches.sort(key=lambda s: s.get("mtime") or s.get("startedAt", 0), reverse=True)
                 session_id = matches[0]["id"]
                 info = self._get_session_info(session_id)
             else:

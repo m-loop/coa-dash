@@ -663,7 +663,148 @@ def get_claude_session(session_id):
         session = claude_sessions.get(session_id)
         if session:
             return session.get_info()
+    # Fallback: scan disk for unimported sessions
+    disk = _get_session_from_disk(session_id)
+    if disk:
+        return disk
+    return None
+
+
+def _get_session_from_disk(session_id):
+    """Find a session on disk by scanning ~/.claude/projects/"""
+    claude_projects_dir = os.path.expanduser("~/.claude/projects")
+    if not os.path.isdir(claude_projects_dir):
         return None
+    target_file = session_id + ".jsonl"
+    for project_dir_name in os.listdir(claude_projects_dir):
+        project_dir = os.path.join(claude_projects_dir, project_dir_name)
+        if not os.path.isdir(project_dir):
+            continue
+        target_path = os.path.join(project_dir, target_file)
+        if not os.path.exists(target_path):
+            continue
+        stat = os.stat(target_path)
+        mtime = stat.st_mtime
+        # Parse session file for metadata
+        slug = session_id[:8]
+        git_branch = None
+        message_count = 0
+        first_user_msg = None
+        try:
+            with open(target_path, "r") as f:
+                for line in f:
+                    try:
+                        data = json.loads(line.strip())
+                        if data.get("type") == "system" and data.get("slug"):
+                            slug = data.get("slug", slug)
+                            git_branch = data.get("gitBranch")
+                        if data.get("type") == "user" and not first_user_msg:
+                            text = data.get("message", {}).get("content", "")
+                            if isinstance(text, str):
+                                first_user_msg = text[:80]
+                        if data.get("type") == "assistant":
+                            message_count += 1
+                        elif data.get("type") == "user":
+                            message_count += 1
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        # Resolve project name
+        project_name = project_dir_name
+        cwd_path = None
+        if project_dir_name.startswith("-"):
+            if hasattr(list_available_claude_sessions, '_path_cache'):
+                cached = list_available_claude_sessions._path_cache
+                if project_dir_name in cached:
+                    cwd_path = cached[project_dir_name]
+                    project_name = os.path.basename(cwd_path)
+            if cwd_path is None:
+                project_name = project_dir_name.split("-")[-1] or project_dir_name
+        # Check if active in terminal
+        is_active_in_terminal = _is_session_in_terminal(session_id, cwd_path or project_dir_name)
+        return {
+            "id": session_id,
+            "shortId": session_id[:8],
+            "slug": slug,
+            "projectName": project_name,
+            "projectDir": project_dir_name,
+            "cwd": cwd_path,
+            "gitBranch": git_branch,
+            "mtime": mtime,
+            "mtimeAgo": format_time_ago(int(mtime * 1000)),
+            "size": stat.st_size,
+            "messageCount": message_count,
+            "firstMessage": first_user_msg or "",
+            "isActive": is_active_in_terminal or False,
+            "isActiveInDashboard": session_id in claude_sessions,
+            "isActiveInTerminal": is_active_in_terminal or False,
+            "status": "idle",
+            "live": is_active_in_terminal or False,
+            "title": f"{project_name}/{slug}",
+        }
+    return None
+
+
+def _is_session_in_terminal(session_id, project_path):
+    """Check if a session has an active Claude process via /proc scan"""
+    try:
+        for pid_dir in os.listdir("/proc"):
+            if not pid_dir.isdigit():
+                continue
+            try:
+                cmdline = open(f"/proc/{pid_dir}/cmdline", "rb").read().decode("utf-8", errors="replace")
+                if "claude" not in cmdline:
+                    continue
+                cwd_link = os.readlink(f"/proc/{pid_dir}/cwd")
+                # Check if cwd matches project
+                if isinstance(project_path, str) and project_path.startswith("-"):
+                    # encoded path, can't easily compare
+                    continue
+                if cwd_link and project_path and cwd_link == project_path:
+                    return True
+            except (FileNotFoundError, PermissionError):
+                continue
+    except Exception:
+        pass
+    return False
+
+
+def _read_session_history_from_disk(session_id, limit=100):
+    """Read session history directly from JSONL file on disk"""
+    claude_projects_dir = os.path.expanduser("~/.claude/projects")
+    target_file = session_id + ".jsonl"
+    if not os.path.isdir(claude_projects_dir):
+        return None
+    for project_dir_name in os.listdir(claude_projects_dir):
+        project_dir = os.path.join(claude_projects_dir, project_dir_name)
+        target_path = os.path.join(project_dir, target_file)
+        if not os.path.exists(target_path):
+            continue
+        history = []
+        try:
+            with open(target_path, "rb") as f:
+                f.seek(0, 2)
+                file_size = f.tell()
+                chunk_size = 8192
+                lines_found = []
+                pos = file_size
+                while pos > 0 and len(lines_found) < limit + 10:
+                    read_size = min(chunk_size, pos)
+                    pos -= read_size
+                    f.seek(pos)
+                    chunk = f.read(read_size).decode("utf-8", errors="replace")
+                    lines_found = chunk.split("\n") + lines_found
+                for line in lines_found[-limit:]:
+                    if line.strip():
+                        try:
+                            history.append(json.loads(line.strip()))
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+        return {"messages": history, "count": len(history), "total": len(history)}
+    return None
 
 
 def get_claude_session_history(session_id, limit=50):
@@ -2342,7 +2483,12 @@ class COADashHandler(BaseHTTPRequestHandler):
             limit = int(query.get("limit", [100])[0])
             result = get_claude_session_history(session_id, limit)
             if "error" in result:
-                self.send_json(result, 404)
+                # Fallback: read directly from disk for unimported sessions
+                disk_hist = _read_session_history_from_disk(session_id, limit)
+                if disk_hist is not None:
+                    self.send_json(disk_hist)
+                else:
+                    self.send_json(result, 404)
             else:
                 self.send_json(result)
         elif path == "/api/claudecode/available":
