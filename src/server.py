@@ -128,35 +128,31 @@ class ClaudeSession:
         self._lock = threading.Lock()
 
     def is_live(self):
-        """Check if a live Claude process is using this session (interactive REPL or other client).
-
-        Detects by checking /proc for any process with the session's jsonl file open.
-        coa-dash's own subprocess won't trigger this — it exits before we'd check.
-        """
+        """Check if a live Claude CLI process is running in this session's project directory."""
         if not self.claude_session_id:
             return False
-        import glob as _glob
-        import subprocess as _sp
-        # Build path to the session jsonl file
-        encoded = self.cwd.replace("/", "-")
-        session_file = os.path.expanduser(
-            f"~/.claude/projects/{encoded}/{self.claude_session_id}.jsonl"
-        )
-        if not os.path.exists(session_file):
+        target_cwd = (self.cwd or "").rstrip("/")
+        if not target_cwd:
             return False
         try:
-            result = _sp.run(
-                ["fuser", session_file],
-                capture_output=True, text=True, timeout=3
-            )
-            # fuser returns 0 if any process has the file open
-            return result.returncode == 0
+            for pid in os.listdir("/proc"):
+                if not pid.isdigit():
+                    continue
+                try:
+                    cmdline = open(f"/proc/{pid}/cmdline", "rb").read().decode("utf-8", errors="ignore")
+                except (FileNotFoundError, PermissionError, ProcessLookupError):
+                    continue
+                if "claude" not in cmdline:
+                    continue
+                try:
+                    proc_cwd = os.readlink(f"/proc/{pid}/cwd")
+                except (FileNotFoundError, PermissionError, ProcessLookupError):
+                    continue
+                if proc_cwd.rstrip("/") == target_cwd:
+                    return True
+            return False
         except Exception:
             return False
-        self.status = "idle"
-        self.current_activity = ""
-        self.buffer_file = f"/tmp/claude-session-{session_id}.jsonl"
-        self.started_at = time.time()
         self.messages = []
         self.last_used_at = None  # Track for conflict detection
         self._lock = threading.Lock()
