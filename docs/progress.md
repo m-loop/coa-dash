@@ -1,5 +1,83 @@
 # COA-dash Progress
 
+## WBS — Work Breakdown Structure
+
+### W1: Dashboard Core (v0.1–0.4) ✅
+| ID | Feature | Status |
+|----|---------|--------|
+| W1.1 | HTTP server (BaseHTTPRequestHandler) | ✅ v0.1 |
+| W1.2 | Agent status + live sessions | ✅ v0.2 |
+| W1.3 | Task management + notifications | ✅ v0.3 |
+| W1.4 | Mobile-first redesign, bottom nav, OLED dark theme | ✅ v0.4 |
+| W1.5 | Touch-first UI (44px targets, no keyboard shortcuts) | ✅ v0.4 |
+
+### W2: Mobile UX (v0.5) ✅
+| ID | Feature | Status |
+|----|---------|--------|
+| W2.1 | OpenCode tab + session list + chat | ✅ v0.5.0 |
+| W2.2 | Swipe-to-delete tasks | ✅ v0.5.1 |
+| W2.3 | Status/assignee dropdowns, batch operations | ✅ v0.5.3 |
+| W2.4 | Task execute (agent selection modal) | ✅ v0.5.5 |
+
+### W3: Feishu Bridge (v0.6–0.7) ✅
+| ID | Feature | Status |
+|----|---------|--------|
+| W3.1 | lark-oapi SDK, WebSocket DM/group messaging | ✅ |
+| W3.2 | /link /new /stop /sessions /help commands | ✅ |
+| W3.3 | Claude --resume --print session management | ✅ |
+| W3.4 | Reaction-based status (Typing→Thinking→Tool→Done) | ✅ |
+| W3.5 | Card messages (JSON 2.0) with streaming updates | ✅ |
+| W3.6 | Baseline persistence (no message loss on restart) | ✅ |
+| W3.7 | MCP server for OpenClaw integration (5 tools) | ✅ |
+
+### W4: Bridge Hardening (v0.7.1–0.7.5) ✅
+| ID | Feature | Status |
+|----|---------|--------|
+| W4.1 | Poll thread dead-on-startup fix | ✅ 04-15 |
+| W4.2 | Concurrent message race condition fix | ✅ 04-15 |
+| W4.3 | stdin/stderr pipe deadlock fix | ✅ 04-15 |
+| W4.4 | Session recovery messageCount sync | ✅ 04-19 |
+| W4.5 | /sessions sorted by last active, grouped by project | ✅ 04-19 |
+
+### W5: Interactive Cards (v0.8.0) ✅
+| ID | Feature | Status |
+|----|---------|--------|
+| W5.1 | Control panel card (/help /status → buttons) | ✅ 04-19 |
+| W5.2 | Sessions card with per-session Connect buttons | ✅ 04-19 |
+| W5.3 | Card button callbacks via WebSocket (monkey-patch) | ✅ 04-19 |
+| W5.4 | Terminal live detection (/proc scan) | ✅ 04-19 |
+| W5.5 | Three-tier status: ⚡ working / 💻 terminal / offline | ✅ 04-19 |
+
+### W6: Next (Backlog)
+| ID | Feature | Status | Priority |
+|----|---------|--------|----------|
+| W6.1 | New session form card (Phase 1 of interactive cards) | 📋 Planned | Medium |
+| W6.2 | Control panel auto-refresh on status change | 📋 Planned | Medium |
+| W6.3 | Stale session detection (process dead but status stuck) | 📋 Known Issue | High |
+| W6.4 | File/image forwarding | 📋 Planned | Low |
+| W6.5 | Feishu webhook integration | 📋 Planned | Low |
+| W6.6 | Cron job system for Claude tasks | 📋 Planned | Low |
+
+---
+
+## v0.8.0 - Interactive Cards + Terminal Detection (2026-04-19)
+
+### Features
+- [x] Interactive control panel: /help /status → card with Stop/Compact/Unlink/Sessions buttons
+- [x] Sessions card with per-session Connect buttons
+- [x] Card button callbacks via WsClient (card.action.trigger over WebSocket EVENT channel)
+- [x] Terminal live detection via /proc scan (project-level granularity)
+- [x] Three-tier session status: ⚡ working / 💻 terminal / offline
+- [x] Debug logging cleanup
+
+### Key Technical Discoveries
+1. Feishu card callbacks arrive as EVENT type frames, NOT CARD type
+2. lark-oapi SDK model classes require dict init, not keyword arguments
+3. `fuser` can't detect Claude processes (don't hold jsonl file handles open)
+4. `/proc/*/cmdline` scan matches Claude processes by cwd
+
+---
+
 ## v0.7.1 - Session Fix (2026-04-15)
 
 ### Fixed
@@ -26,9 +104,9 @@
 ### Key Files
 | File | Lines | Purpose |
 |------|-------|---------|
-| `src/feishu-bridge.py` | ~750 | Feishu-Claude WebSocket bridge |
+| `src/feishu-bridge.py` | ~1200 | Feishu-Claude WebSocket bridge |
 | `src/coa-dash-mcp.py` | ~310 | MCP server for OpenClaw |
-| `src/server.py` | ~2750 | HTTP server + session manager |
+| `src/server.py` | ~2700 | HTTP server + session manager |
 | `src/index.html` | ~2200 | Dashboard UI |
 
 ### Design Decisions
@@ -38,9 +116,25 @@
 
 ## Current State
 
-**Version**: 0.7.1
+**Version**: 0.8.0
 **Status**: Deployed and running
-**Last Updated**: 2026-04-15
+**Last Updated**: 2026-04-19
+
+### Services
+| Service | Port | Status |
+|---------|------|--------|
+| coa-dash | 8890 | ✅ systemd |
+| feishu-bridge | — | ✅ systemd |
+
+### Key Metrics
+| Metric | Value |
+|--------|-------|
+| Total commits | 64 |
+| feishu-bridge.py | ~1200 lines |
+| server.py | ~2700 lines |
+| index.html | ~2200 lines |
+| coa-dash-mcp.py | ~310 lines |
+| Active Feishu mappings | 2–3 |
 
 ---
 
