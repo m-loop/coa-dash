@@ -494,6 +494,9 @@ class FeishuBridge:
         name = info.get("title", info.get("name", session_id[:8])) if info else session_id[:8]
         self._send_text(chat_id, f"✅ Linked to: {name}")
 
+        # Auto-load last 3 rounds after linking
+        self._cmd_load(lookup_key, chat_id, "3")
+
     def _cmd_new(self, args, lookup_key, chat_id):
         """Create a new Claude session and link this chat to it"""
         parts = args.split()
