@@ -1411,8 +1411,7 @@ class FeishuBridge:
                             self._last_working_text[session_id] = last_assistant_text
                     time.sleep(2)
                 else:
-                    # Done — replace reaction with ✅, send card response
-                    # Dedup: skip if same content was already delivered
+                    # Done — update existing card to green "Claude" (no new card)
                     content_hash = hashlib.md5(last_assistant_text.encode()).hexdigest()[:12]
                     if content_hash == self._last_delivered_hash.get(session_id):
                         print(f"[POLL] {session_id[:8]} skip duplicate (hash={content_hash})", flush=True)
@@ -1423,11 +1422,14 @@ class FeishuBridge:
 
                     self._replace_reaction(session_id, "CheckMark")
 
-                    # Always send a new card for the final response
-                    card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
+                    # Update existing working card to done (green), or send new if none
+                    card_id = self._response_cards.get(session_id)
+                    if card_id:
+                        self._update_card(card_id, "Claude", last_assistant_text, "done")
+                    else:
+                        card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
 
-                    # Clear working card ref — next message creates a fresh working card
-                    # instead of overwriting this done card
+                    # Clear card ref — next message creates a fresh card
                     self._response_cards.pop(session_id, None)
 
                     self._forward_baselines[session_id] = current_count
@@ -1437,7 +1439,7 @@ class FeishuBridge:
                     self._last_working_text.pop(session_id, None)
                     last_emoji = ""
                     last_card_activity = ""
-                    self._save_persistence()  # Persist baseline after delivery
+                    self._save_persistence()
 
                     print(f"[POLL→Feishu] session={session_id[:8]} done len={len(last_assistant_text)} card={card_id is not None} hash={content_hash}", flush=True)
                     time.sleep(6)
