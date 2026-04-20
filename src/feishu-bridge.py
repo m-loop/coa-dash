@@ -1279,15 +1279,15 @@ class FeishuBridge:
                 activity = info.get("activity", "")
                 is_live = info.get("live", False)
 
-                # State change notification: terminal open/close
+                # State change notification: terminal became active
+                # Note: is_live=False just means idle (5 min no file write), not
+                # that the terminal closed.  Only notify on live→True to reduce spam.
+                # Terminal truly closing is handled by the 404 break above.
                 prev_live = self._prev_live.get(session_id)
-                if prev_live is not None and prev_live != is_live:
+                if prev_live is not None and not prev_live and is_live:
                     notify_chat = self._session_chat_map.get(session_id)
                     if notify_chat:
-                        if is_live:
-                            self._send_text(notify_chat, "💻 检测到终端活动")
-                        else:
-                            self._send_text(notify_chat, "🔌 终端已关闭")
+                        self._send_text(notify_chat, "💻 检测到终端活动")
                 self._prev_live[session_id] = is_live
 
                 # No baseline yet
