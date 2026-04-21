@@ -234,45 +234,29 @@ systemctl --user is-active feishu-bridge   # active
 
 ---
 
-## Group D — Frontend (2 items)
+## Group D — Frontend (2 items) — **SCOPE-DEFERRED 2026-04-21**
 
-### P1-15 · Remove onkeypress handlers (D1 violation)
+> **Do not execute.** Per `memory/project-scope-decision.md`, the COA-dash web dashboard is deprecated; short-term audit/fix work focuses on the Feishu bridge. P1-15 and P1-16 are documented below for historical completeness but are **backlog**, not part of the 0.7.3 ship.
+
+### P1-15 · Remove onkeypress handlers (D1 violation) — DEFERRED
 **File**: `src/index.html` lines 3724 and 4984 (approximately).
+Web dashboard is deprecated; do not touch.
 
-**Fix**: remove `onkeypress="handleClaudeInputKey(event)"` and `onkeypress="handleOpenCodeKeyPress(event)"` attributes. The send buttons stay — keyboard-send is D1 violation on touch primary device.
-If users complain, the button is still there. Do not add any replacement.
-
-Also delete the two now-orphan functions `handleClaudeInputKey` / `handleOpenCodeKeyPress`.
-
-**Commit**: `fix(ui): remove keyboard shortcuts to honor D1 touch-first (P1-15)`
+### P1-16 · Escape tool output in OpenCode renderer — DEFERRED
+**File**: `src/index.html` — OpenCode message rendering functions.
+Web dashboard is deprecated; do not touch.
 
 ---
 
-### P1-16 · Escape tool output in OpenCode renderer
-**File**: `src/index.html` — OpenCode message rendering functions (around `renderOpenCodeMessages`, lines 5070, 5071, 5104, 5130).
-
-**Fix**: every `innerHTML = renderOpenCodeMessages()` is fine IF `renderOpenCodeMessages` itself escapes. Audit `renderOpenCodeMessages` and any helper it calls — every interpolation of `message.content`, `tool.output`, `tool.input` must go through `escapeHtml()`.
-Pattern to convert:
-```js
-// BEFORE
-html += `<pre>${output}</pre>`;
-// AFTER
-html += `<pre>${escapeHtml(output)}</pre>`;
-```
-Do NOT wrap Markdown-rendered HTML — if a function returns already-rendered trusted HTML, leave it. Only user / tool output strings need escaping.
-
-**Commit**: `fix(security): escape OpenCode tool output to prevent XSS (P1-16)`
+## Group D smoke test — N/A (skipped per scope decision)
 
 ---
 
-## Group D smoke test
+## Scope decision summary (2026-04-21)
 
-```bash
-# Reload dashboard in browser
-# Try typing Enter in Claude/OpenCode input fields — should NOT send (must click button)
-# Open an OpenCode session with tool output containing "<script>alert(1)</script>" in bash output
-# Confirm the text renders as literal, not as alert
-```
+- **In scope** for GLM-5.1 0.7.3 run: Groups A (P1-01..05), B (P1-06..10), C (P1-11..14). ~14 items.
+- **Out of scope** (backlog): Group D (P1-15, P1-16).
+- **Optional — check bridge dependency first**: P1-07 (OpenCode proxy), P1-08 (OpenCode LIKE), P1-09 (task enum). If bridge does not hit these endpoints, move to backlog too.
 
 ---
 
@@ -288,10 +272,9 @@ Do NOT wrap Markdown-rendered HTML — if a function returns already-rendered tr
    ### Security
    - Cap request body at 1 MiB (P1-01)
    - Enforce cwd allowlist in disk-session send (P1-06)
-   - Whitelist OpenCode proxy params (P1-07)
-   - Escape LIKE wildcards in SQLite filter (P1-08)
-   - Enum-validate task priority/status (P1-09)
-   - Escape OpenCode tool output in frontend (P1-16)
+   - Whitelist OpenCode proxy params (P1-07)       # if executed
+   - Escape LIKE wildcards in SQLite filter (P1-08) # if executed
+   - Enum-validate task priority/status (P1-09)    # if executed
 
    ### Fixed
    - Thread-safe agent/session caches (P1-02, P1-10)
@@ -299,8 +282,8 @@ Do NOT wrap Markdown-rendered HTML — if a function returns already-rendered tr
    - Skip corrupted tasks.jsonl lines (P1-05)
    - Feishu bridge card lifecycle + session race fixes (P1-11..14)
 
-   ### Changed
-   - Removed keyboard shortcut handlers per D1 (P1-15)
+   ### Deferred
+   - Web frontend hardening (P1-15 onkeypress, P1-16 OpenCode XSS) — deprecated surface
    ```
 5. Single `git push origin master` at the end.
 
