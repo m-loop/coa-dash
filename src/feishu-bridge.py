@@ -384,6 +384,9 @@ class FeishuBridge:
                 self._cmd_load(lookup_key, chat_id, rounds)
             elif cmd == "compact":
                 self._cmd_compact(lookup_key, chat_id)
+            elif cmd == "model":
+                model = value.get("model", "")
+                self._cmd_model(lookup_key, chat_id, model)
             elif cmd == "panel":
                 self._send_control_panel(chat_id)
             elif cmd == "new":
@@ -445,6 +448,8 @@ class FeishuBridge:
             self._cmd_compact(lookup_key, chat_id)
         elif command == "/ls":
             self._cmd_ls(chat_id, args)
+        elif command == "/model":
+            self._cmd_model(lookup_key, chat_id, args)
         elif command == "/help":
             self._send_control_panel(chat_id)
         else:
@@ -659,6 +664,44 @@ class FeishuBridge:
                 lines.append(f"  ... +{len(dirs) - 30} more")
             lines.append("\n(* = git repo)")
             self._send_text(chat_id, "\n".join(lines))
+        except Exception as e:
+            self._send_text(chat_id, f"⚠️ Error: {e}")
+
+    def _cmd_model(self, lookup_key, chat_id, args=""):
+        """Show or switch session model"""
+        session_id = self._chat_session_map.get(lookup_key)
+        if not session_id:
+            self._send_text(chat_id, "No linked session. Use /link first.")
+            return
+
+        info = self._get_session_info(session_id)
+        current_model = info.get("model") or "default"
+
+        if not args:
+            buttons = [
+                self._btn("sonnet", "model", model="sonnet"),
+                self._btn("opus", "model", model="opus"),
+                self._btn("haiku", "model", model="haiku"),
+                self._btn("default", "model", model=""),
+            ]
+            self._send_card(chat_id, f"Model: {current_model}", "Choose a model:", "done", buttons)
+            return
+
+        model = args.strip()
+        if model.lower() == "default":
+            model = None
+
+        try:
+            resp = requests.put(
+                f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}/model",
+                json={"model": model},
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                display = model or "default"
+                self._send_text(chat_id, f"✅ Model set to {display}")
+            else:
+                self._send_text(chat_id, f"⚠️ Failed: {resp.text}")
         except Exception as e:
             self._send_text(chat_id, f"⚠️ Error: {e}")
 
@@ -1214,7 +1257,8 @@ class FeishuBridge:
                 else:
                     time_str = f"{ago // 3600}h ago"
                 status_emoji = "working" if status == "working" else "idle"
-                content = f"**{name}**\n{status_emoji} · {mc} msgs · {time_str}"
+                model_display = info.get("model") or "default" if info else "?"
+                content = f"**{name}**\n{status_emoji} · {mc} msgs · {time_str} · model: {model_display}"
             else:
                 content = f"Session `{session_id[:8]}` (details unavailable)"
 
@@ -1222,6 +1266,7 @@ class FeishuBridge:
                 self._btn("Stop", "stop"),
                 self._btn("History", "load", rounds=3),
                 self._btn("Compact", "compact"),
+                self._btn("Model", "model"),
                 self._btn("Unlink", "unlink"),
                 self._btn("Sessions", "sessions"),
             ]

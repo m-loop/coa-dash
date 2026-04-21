@@ -2616,6 +2616,28 @@ class COADashHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(e)}, 400)
             return
 
+        # Handle /api/claudecode/sessions/:id/model
+        session_model_match = re.match(r"/api/claudecode/sessions/([^/]+)/model$", path)
+        if session_model_match:
+            session_id = session_model_match.group(1)
+            session = claude_sessions.get(session_id)
+            if not session:
+                self.send_json({"error": "Session not found"}, 404)
+                return
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                data = json.loads(body)
+                new_model = data.get("model", None)
+                with session._lock:
+                    session.model = new_model
+                save_sessions_metadata()
+                broadcast_session_update(session_id, "model", session.get_info())
+                self.send_json({"success": True, "model": new_model})
+            except Exception as e:
+                self.send_json({"error": str(e)}, 400)
+            return
+
         # Handle /api/tasks/:id/assignee
         assignee_match = re.match(r"/api/tasks/([^/]+)/assignee", path)
         if assignee_match:
