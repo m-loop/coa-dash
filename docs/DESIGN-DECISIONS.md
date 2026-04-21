@@ -938,6 +938,19 @@ This document records every design decision made for COA-dash, including reasoni
 
 ---
 
-**END OF DESIGN DECISIONS**
+### D116: Card lifecycle — reuse with TTL
+**Decision**: One round of conversation = one card that transitions blue→green in place. Card has 10-minute TTL from done timestamp. After TTL, next user message creates a new card.
+**Why**: Reusing cards avoids spam (no new card per message). But stale cards from hours ago should not be patched — the update would be invisible to users who've scrolled past. 10 min balances reuse and visibility.
+**Implementation**: `_card_done_at[session_id]` tracks when card turned green. `_forward_to_claude` checks TTL before reusing. `_CARD_TTL_SECONDS = 600`.
+
+### D117: Busy guard — reject messages while working
+**Decision**: Before injecting a message, bridge checks session status. If "working"/"starting", returns `⏰ 会话忙碌，请稍后重试` with Alarm reaction. Message is NOT forwarded.
+**Why**: Claude's `--resume` can queue messages but responses interleave unpredictably. Rejecting up front gives clear feedback and avoids response confusion.
+
+### D118: Reaction state preserved across done
+**Decision**: `_pending_reactions` and `_current_reactions` are NOT cleared on done. They persist until the next `_forward_to_claude` call overwrites them.
+**Why**: Clearing on done caused BUG-B: second message's poll couldn't find the msg_id to replace reaction. The reactions belong to the user's message, not the response card, so they should persist as long as the user might send a follow-up.
+
+---
 
 **END OF DESIGN DECISIONS**

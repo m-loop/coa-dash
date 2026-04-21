@@ -350,21 +350,25 @@ edge cases          │ FB-33~38  │ (cross-cutting)              │ —      
 - No CrossMark ❌ error (the bug we fixed — disk sessions work)
 - Claude response arrives as card:
   - While working: reaction cycles through emojis (THINKING, Pin, Fire, etc.) based on activity
-  - While working: working card created/updated with activity text
+  - While working: **new blue working card** created with "⏳ Thinking..." (unless recent done card within TTL)
+  - While working: same card updated in place with activity text / partial response
   - On completion: reaction replaced with ✅ CheckMark
-  - On completion: new done card sent with full response
+  - On completion: **same card turns green** ("done") with full response (not a new card)
+  - If >10 min since last done → new card created; otherwise existing card reused
 
 ---
 
 #### FB-24: Text message while session is busy
 
-**Priority**: P1
+**Priority**: P0
 **Precondition**: Session linked, already working (Claude processing previous message)
 **Steps**: Send `second message`
 **Expected**:
-- One of: message queued (retained), or error feedback
-- Reaction: Alarm emoji if busy
+- Bridge checks session status BEFORE injecting — detects "working"/"starting"
+- Reaction: Alarm ⏰ emoji on user's message
 - Text: `⏰ 会话忙碌，请稍后重试`
+- Message NOT forwarded to Claude
+- No card created for rejected message
 
 ---
 
@@ -468,6 +472,7 @@ edge cases          │ FB-33~38  │ (cross-cutting)              │ —      
 - THINKING → Pin (when activity: "tool:read")
 - Pin → Fire (when activity: "tool:edit")
 - Activity-specific emoji mapping per `_activity_emoji()`
+- Reaction continues cycling throughout working state
 
 ---
 
@@ -477,10 +482,11 @@ edge cases          │ FB-33~38  │ (cross-cutting)              │ —      
 **Precondition**: Session linked, Claude processing
 **Observe**: Cards appear in chat
 **Expected**:
-- First activity → blue working card created with activity text
-- Activity changes → card updated in place (not new card)
-- Card title: "Claude (working...)"
-- Card template: blue (working)
+- First activity → **blue working card** created with activity text (visible near user message)
+- Activity changes → **same card** updated in place (not new card)
+- Card title: "Claude (working)" or "Claude (working...)"
+- Card header: blue (working)
+- Partial response text appears in card as Claude streams
 
 ---
 
@@ -490,11 +496,12 @@ edge cases          │ FB-33~38  │ (cross-cutting)              │ —      
 **Precondition**: Claude finishes response
 **Observe**: Final card in chat
 **Expected**:
-- New green done card created (not updating working card)
+- **Same card turns green** (working → done in place, not a new card)
 - Card title: "Claude"
-- Card contains Claude's response text
+- Card contains Claude's full response text
 - ✅ CheckMark reaction replaces working emoji
-- Working card ref cleared (next message creates fresh working card)
+- Done timestamp recorded for TTL check
+- Next message within 10 min → reuses this card; after 10 min → creates new card
 
 ---
 

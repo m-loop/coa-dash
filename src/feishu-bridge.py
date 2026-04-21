@@ -110,6 +110,9 @@ WsClient._handle_data_frame = _patched_handle_data_frame
 print("[PATCH] WsClient._handle_data_frame monkey-patched for CARD support", flush=True)
 
 
+_CARD_TTL_SECONDS = 600  # Reuse done card within 10 min; create new after that
+
+
 class FeishuBridge:
     """Bridge between Feishu chats and Claude Code sessions"""
 
@@ -136,6 +139,7 @@ class FeishuBridge:
         self._last_delivered_hash = {}  # session_id -> hash of last delivered text (dedup)
         self._last_working_text = {}  # session_id -> last text shown on working card (throttle)
         self._prev_live = {}  # session_id -> bool, previous terminal live state
+        self._card_done_at = {}  # session_id -> timestamp when card turned green (done)
         self._seen_msg_ids = {}  # msg_id -> timestamp, dedup WS redelivery (LRU, 5min TTL)
         self._running = False
 
@@ -952,16 +956,23 @@ class FeishuBridge:
             self._prev_live.pop(session_id, None)
 
             # Set baseline BEFORE POST so crash doesn't cause replay
+            # Also check if session is already working (busy guard)
             try:
                 info_resp = requests.get(
                     f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}",
                     timeout=5,
                 )
                 if info_resp.status_code == 200:
-                    mc = info_resp.json().get("messageCount", 0)
+                    info = info_resp.json()
+                    mc = info.get("messageCount", 0)
                     self._forward_baselines[session_id] = mc
                     self._save_persistence()
                     print(f"[FWD] baseline set before POST: messageCount={mc}", flush=True)
+                    if info.get("status") in ("working", "starting"):
+                        print(f"[FWD] session={session_id[:8]} busy (status={info.get('status')})", flush=True)
+                        self._replace_reaction(session_id, "Alarm")
+                        self._send_text(chat_id, "⏰ 会话忙碌，请稍后重试")
+                        return
             except Exception:
                 pass
 
@@ -984,13 +995,18 @@ class FeishuBridge:
                     # Error → replace reaction with ❌
                     self._replace_reaction(session_id, "CrossMark")
                     self._pending_reactions.pop(session_id, None)
-            # Update or create working card — reuse existing card to avoid duplicates
+            # Update or create working card — reuse only if done recently (within TTL)
             if result.get("injected") or result.get("retained"):
                 existing_card = self._response_cards.get(session_id)
-                if existing_card:
+                stale = existing_card and (
+                    self._card_done_at.get(session_id, 0) < time.time() - _CARD_TTL_SECONDS
+                )
+                if existing_card and not stale:
                     self._update_card(existing_card, "Claude", "⏳ Thinking...", "working")
-                    print(f"[FWD→Card] update working card for {session_id[:8]}", flush=True)
+                    print(f"[FWD→Card] reuse working card for {session_id[:8]}", flush=True)
                 else:
+                    if stale:
+                        print(f"[FWD→Card] stale card (TTL expired), new for {session_id[:8]}", flush=True)
                     card_id = self._send_card(chat_id, "Claude", "⏳ Thinking...", "working")
                     if card_id:
                         self._response_cards[session_id] = card_id
@@ -1434,13 +1450,12 @@ class FeishuBridge:
                     else:
                         card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
 
-                    # Keep card ref — next user message overwrites it via _forward_to_claude
+                    # Keep card ref — next user message reuses or creates new (via TTL)
 
                     self._forward_baselines[session_id] = current_count
-                    self._pending_reactions.pop(session_id, None)
-                    self._current_reactions.pop(session_id, None)
                     self._last_delivered_hash[session_id] = content_hash
                     self._last_working_text.pop(session_id, None)
+                    self._card_done_at[session_id] = time.time()
                     last_emoji = ""
                     last_card_activity = ""
                     self._save_persistence()
