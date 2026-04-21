@@ -2,8 +2,8 @@
 
 This document records every design decision made for COA-dash, including reasoning and trade-offs.
 
-**Version**: 0.4.1  
-**Last Updated**: 2026-03-31
+**Version**: 0.7.2  
+**Last Updated**: 2026-04-21
 
 ---
 

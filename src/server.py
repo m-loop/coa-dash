@@ -153,9 +153,6 @@ class ClaudeSession:
             return False
         except Exception:
             return False
-        self.messages = []
-        self.last_used_at = None  # Track for conflict detection
-        self._lock = threading.Lock()
 
     def send_message_async(self, content):
         """Send message in background thread, returns immediately"""
@@ -193,24 +190,30 @@ class ClaudeSession:
                 proc.stdin.write(content)
                 proc.stdin.close()
 
-                # Stream stdout line-by-line for real-time activity updates
-                with self._lock:
-                    with open(self.buffer_file, "a") as buf:
-                        for line in proc.stdout:
-                            line = line.rstrip("\n")
-                            if not line:
-                                continue
-                            buf.write(line + "\n")
-                            try:
-                                data = json.loads(line)
-                                self.messages.append(data)
-                                self.message_seq += 1
-                                if len(self.messages) > self.MAX_MESSAGES:
-                                    self.messages = self.messages[-self.MAX_MESSAGES:]
-                                self._parse_status(data)
-                                broadcast_session_update(self.id, "message", data)
-                            except Exception:
-                                pass
+                # Stream stdout line-by-line for real-time activity updates.
+                # Lock held only around mutation of self.messages, NOT the full
+                # streaming loop — otherwise FileWatcher/get_info would stall
+                # for the entire Claude run (potentially minutes).
+                with open(self.buffer_file, "a") as buf:
+                    for line in proc.stdout:
+                        line = line.rstrip("\n")
+                        if not line:
+                            continue
+                        buf.write(line + "\n")
+                        try:
+                            data = json.loads(line)
+                        except Exception:
+                            continue
+                        with self._lock:
+                            self.messages.append(data)
+                            self.message_seq += 1
+                            if len(self.messages) > self.MAX_MESSAGES:
+                                self.messages = self.messages[-self.MAX_MESSAGES:]
+                        try:
+                            self._parse_status(data)
+                            broadcast_session_update(self.id, "message", data)
+                        except Exception:
+                            pass
 
                 proc.wait()
 
@@ -272,23 +275,28 @@ class ClaudeSession:
             proc.stdin.write(content)
             proc.stdin.close()
 
-            # Stream stdout line-by-line for real-time activity updates
-            with self._lock:
-                with open(self.buffer_file, "a") as buf:
-                    for line in proc.stdout:
-                        line = line.rstrip("\n")
-                        if not line:
-                            continue
-                        buf.write(line + "\n")
-                        try:
-                            data = json.loads(line)
-                            self.messages.append(data)
-                            if len(self.messages) > self.MAX_MESSAGES:
-                                self.messages = self.messages[-self.MAX_MESSAGES:]
-                            self._parse_status(data)
-                            broadcast_session_update(self.id, "message", data)
-                        except Exception:
-                            pass
+            # Stream stdout line-by-line for real-time activity updates.
+            # Lock held only around mutation of self.messages (see rationale
+            # in send_message_async above).
+            with open(self.buffer_file, "a") as buf:
+                for line in proc.stdout:
+                    line = line.rstrip("\n")
+                    if not line:
+                        continue
+                    buf.write(line + "\n")
+                    try:
+                        data = json.loads(line)
+                    except Exception:
+                        continue
+                    with self._lock:
+                        self.messages.append(data)
+                        if len(self.messages) > self.MAX_MESSAGES:
+                            self.messages = self.messages[-self.MAX_MESSAGES:]
+                    try:
+                        self._parse_status(data)
+                        broadcast_session_update(self.id, "message", data)
+                    except Exception:
+                        pass
 
             proc.wait()
 
@@ -923,17 +931,46 @@ def is_terminal_busy(session):
         return time.time() - mtime < 5
     return False
 
+_PTY_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+_PTY_MAX_BYTES = 8192
+
+
+def _sanitize_pty_payload(content):
+    """Strip control chars (except \n,\t) to prevent PTY control-sequence injection.
+
+    Returns sanitized content or raises ValueError if too large or empty after strip.
+    """
+    if content is None:
+        raise ValueError("empty content")
+    if not isinstance(content, str):
+        content = str(content)
+    if len(content.encode("utf-8", errors="replace")) > _PTY_MAX_BYTES:
+        raise ValueError("content exceeds 8KB PTY limit")
+    cleaned = _PTY_CONTROL_CHAR_RE.sub("", content)
+    if not cleaned.strip():
+        raise ValueError("content empty after sanitization")
+    return cleaned
+
+
 def inject_to_terminal(session_id, content):
     """Inject message directly into Claude Code's terminal via /dev/pts/X
 
     Matching strategy (in priority order):
     1. Find PID that exclusively owns the session file (has fd pointing to it)
     2. Use most recently started Claude process (newest = most likely active)
+
+    Security: control chars stripped; size-capped to 8KB to prevent terminal
+    escape-sequence / command-sequence injection.
     """
     with claude_sessions_lock:
         session = claude_sessions.get(session_id)
     if not session or not session.claude_session_id:
         return False, "No linked terminal session"
+
+    try:
+        content = _sanitize_pty_payload(content)
+    except ValueError as e:
+        return False, f"Rejected: {e}"
 
     # Get the session file path
     claude_file = get_claude_file_path(session.cwd, session.claude_session_id)

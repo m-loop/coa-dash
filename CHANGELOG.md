@@ -2,6 +2,20 @@
 
 All notable changes to COA-dash will be documented in this file.
 
+## [0.7.2] - 2026-04-21
+
+### Security
+- **P0**: `inject_to_terminal` now sanitizes control chars and caps payload at 8KB, closing a PTY injection vector that allowed arbitrary terminal control sequences to be written to `/dev/pts/X` (`src/server.py`).
+
+### Fixed
+- **P0**: `send_message_async` / `send_message` no longer hold `session._lock` across the full `proc.stdout` iteration — the lock now scopes only to `self.messages` mutation, removing a multi-minute deadlock that blocked `FileWatcher` and status broadcasts (`src/server.py`).
+- **P0**: Dead-code tail after `return False` in `ClaudeSession.is_live()` removed (`src/server.py`).
+- **P0**: Feishu bridge `stop()` previously referenced `subprocess.run` with no module-level import, raising `NameError` at shutdown and leaving orphan Claude processes; `import subprocess` now lives at module top (`src/feishu-bridge.py`).
+
+### Docs
+- Added `docs/AUDIT-2026-04-21.md` — full P0/P1/P2 audit with remediation owners.
+- Synced version strings across VERSION / README / CLAUDE.md / DESIGN-DECISIONS.md.
+
 ## [0.7.1] - 2026-04-15
 
 ### Fixed

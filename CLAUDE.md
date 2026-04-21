@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 COA-dash (Command Orchestration Agent Dashboard) - A mobile-first, touch-first dashboard for AI agent orchestration. Targets Huawei Mate X6 foldable phone as primary device.
 
-**Current Version**: 0.5.5
+**Current Version**: 0.7.2
 
 ## Commands
 

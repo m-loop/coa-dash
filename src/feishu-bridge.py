@@ -20,6 +20,7 @@ Commands (in any mode):
 import json
 import os
 import sys
+import subprocess
 import time
 import threading
 import traceback
@@ -983,12 +984,17 @@ class FeishuBridge:
                     # Error → replace reaction with ❌
                     self._replace_reaction(session_id, "CrossMark")
                     self._pending_reactions.pop(session_id, None)
-            # Create working card immediately — poll loop may miss working state
+            # Update or create working card — reuse existing card to avoid duplicates
             if result.get("injected") or result.get("retained"):
-                card_id = self._send_card(chat_id, "Claude", "⏳ Thinking...", "working")
-                if card_id:
-                    self._response_cards[session_id] = card_id
-                    print(f"[FWD→Card] working card for {session_id[:8]}", flush=True)
+                existing_card = self._response_cards.get(session_id)
+                if existing_card:
+                    self._update_card(existing_card, "Claude", "⏳ Thinking...", "working")
+                    print(f"[FWD→Card] update working card for {session_id[:8]}", flush=True)
+                else:
+                    card_id = self._send_card(chat_id, "Claude", "⏳ Thinking...", "working")
+                    if card_id:
+                        self._response_cards[session_id] = card_id
+                        print(f"[FWD→Card] new working card for {session_id[:8]}", flush=True)
         except Exception as e:
             self._send_text(chat_id, f"⚠️ Forward failed: {e}")
 
@@ -1279,15 +1285,9 @@ class FeishuBridge:
                 activity = info.get("activity", "")
                 is_live = info.get("live", False)
 
-                # State change notification: terminal became active
-                # Note: is_live=False just means idle (5 min no file write), not
-                # that the terminal closed.  Only notify on live→True to reduce spam.
-                # Terminal truly closing is handled by the 404 break above.
-                prev_live = self._prev_live.get(session_id)
-                if prev_live is not None and not prev_live and is_live:
-                    notify_chat = self._session_chat_map.get(session_id)
-                    if notify_chat:
-                        self._send_text(notify_chat, "💻 检测到终端活动")
+                # Track live state for internal use; no user-visible notification.
+                # is_live flips between idle/active routinely (5-min file-write window),
+                # so idle→active is not worth notifying about.
                 self._prev_live[session_id] = is_live
 
                 # No baseline yet

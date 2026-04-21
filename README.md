@@ -4,7 +4,7 @@
 
 Mobile-first, touch-first dashboard for AI agent orchestration. Optimized for Huawei Mate X6 foldable.
 
-**Version**: 0.7.1
+**Version**: 0.7.2
 
 ## Features
 
