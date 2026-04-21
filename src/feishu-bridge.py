@@ -250,15 +250,12 @@ class FeishuBridge:
 
         self._running = True
 
+        # Warm up coa-dash path cache and validate sessions
+        self._warmup_and_validate()
+
         # Resume polling for existing mappings
-        # B9: Clear stale working card tracking (card_ids lost on restart)
-        notified_chats = set()
-        for session_id in self._session_chat_map:
+        for session_id in list(self._session_chat_map):
             self._start_poll(session_id)
-            chat_key = self._session_chat_map[session_id]
-            if chat_key not in notified_chats:
-                notified_chats.add(chat_key)
-                pass  # Silent restart — don't spam chats
 
         print(f"[Bridge] Starting (mode={self._mode})...")
         try:
@@ -266,6 +263,51 @@ class FeishuBridge:
         except KeyboardInterrupt:
             self.stop()
             sys.exit(0)
+
+    def _warmup_and_validate(self):
+        """Warm up coa-dash path cache + validate all linked sessions.
+
+        Must run BEFORE poll threads start, so that the /available API
+        populates the server's _path_cache (needed for cwd resolution).
+        Also removes mappings to deleted/invalid sessions.
+        """
+        # 1. Warm up path cache by calling /available
+        try:
+            resp = requests.get(
+                f"{self._coa_dash_url}/api/claudecode/available",
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                sessions = resp.json().get("sessions", [])
+                available_ids = {s["id"] for s in sessions}
+                print(f"[Bridge] Warmup: {len(sessions)} sessions, path cache primed", flush=True)
+
+                # 2. Validate linked sessions — remove missing ones
+                stale = []
+                for session_id in list(self._session_chat_map):
+                    if session_id not in available_ids:
+                        # Try direct lookup (may be imported but not on disk)
+                        try:
+                            check = requests.get(
+                                f"{self._coa_dash_url}/api/claudecode/sessions/{session_id}",
+                                timeout=5,
+                            )
+                            if check.status_code == 404:
+                                stale.append(session_id)
+                        except Exception:
+                            pass
+
+                for sid in stale:
+                    chat_key = self._session_chat_map.pop(sid, None)
+                    self._chat_session_map.pop(chat_key, None)
+                    print(f"[Bridge] Warmup: removed stale mapping {sid[:8]}", flush=True)
+
+                if stale:
+                    self._save_persistence()
+            else:
+                print(f"[Bridge] Warmup: /available returned {resp.status_code}", flush=True)
+        except Exception as e:
+            print(f"[Bridge] Warmup failed: {e} (polling will proceed anyway)", flush=True)
 
     def stop(self):
         self._running = False
@@ -563,6 +605,16 @@ class FeishuBridge:
             self._chat_session_map[lookup_key] = session_id
             self._session_chat_map[session_id] = lookup_key
             self._save_persistence()
+
+            # Warm up path cache so new project is discoverable
+            try:
+                requests.get(
+                    f"{self._coa_dash_url}/api/claudecode/available",
+                    timeout=10,
+                )
+            except Exception:
+                pass
+
             self._start_poll(session_id)
 
             dir_info = f"📁 Created {cwd}" if created else f"📂 {cwd}"
