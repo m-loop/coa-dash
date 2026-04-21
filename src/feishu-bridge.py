@@ -1449,6 +1449,8 @@ class FeishuBridge:
                         self._update_card(card_id, "Claude", last_assistant_text, "done")
                     else:
                         card_id = self._send_card(chat_id, "Claude", last_assistant_text, "done")
+                        if card_id:
+                            self._response_cards[session_id] = card_id
 
                     # Keep card ref — next user message reuses or creates new (via TTL)
 
