@@ -953,4 +953,7 @@ This document records every design decision made for COA-dash, including reasoni
 
 ---
 
-**END OF DESIGN DECISIONS**
+### D119: Retained message — no working card
+**Decision**: When `_forward_to_claude` receives `retained=True`, the bridge does NOT create a working card. Instead it sends a text notification "⏳ 消息已排队，终端空闲后将自动处理" with an Hourglass reaction.
+**Why**: `retained=True` means the message was written to the pending file but the terminal isn't actively consuming it (session is idle). Creating a working card implies Claude is processing, which is misleading — the card would stay blue forever. Text + Hourglass accurately communicates "queued, waiting."
+**Context**: Commit `82bc9c7` fixed the done-path `_response_cards` bug but the retained scenario still created phantom working cards. Discovered when user sent "test link" to a misc project session — blue card stuck at "⏳ Thinking..." indefinitely.

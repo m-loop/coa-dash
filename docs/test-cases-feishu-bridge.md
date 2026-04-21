@@ -717,3 +717,54 @@ Phase 7: Regression (the 2 fixed bugs)
 | curl (API) | FB-10, FB-14, FB-19~20, FB-40~41 | Server API directly |
 | Bridge log inspection | FB-33~37, FB-38~39, FB-42 | `journalctl` / bridge stdout |
 | Manual (requires timing) | FB-16, FB-24, FB-37 | Human observation |
+
+---
+
+## FB-46: Retained message — idle session
+
+**Feature**: F12 (Retained Message Handling)
+**Priority**: P0
+**Method**: Bridge log inspection
+
+### 前提
+- Session 已 link
+- Session status = idle（Claude 不在处理）
+- 终端进程存在（isActiveInTerminal = true）
+
+### 操作
+1. 在飞书发文本消息（如 "test"）
+
+### 预期
+- Hourglass reaction（替换 Typing）
+- 文本消息"⏳ 消息已排队，终端空闲后将自动处理"
+- **不创建** working 卡片（无蓝色卡片）
+- Bridge 日志：`[FWD→Retained] session=... message queued`
+- Bridge 日志：**无** `[FWD→Card]` 输出
+
+### 验证
+```bash
+journalctl --user -u feishu-bridge --since "30 sec ago" --no-pager | grep -E "FWD→Retained|FWD→Card"
+```
+应只有 `FWD→Retained`，没有 `FWD→Card`。
+
+---
+
+## FB-47: Working card timeout (pending implementation)
+
+**Feature**: F13 (Working Card Timeout)
+**Priority**: P1
+**Method**: Bridge log inspection
+**Status**: pending — 依赖 F10 Stale Detection 增强
+
+### 前提
+- Working 卡片已创建（session status = working）
+- Claude 进程已死或卡住
+
+### 操作
+1. 创建 working 状态
+2. 等待 5 分钟，期间 poll 一直看到 idle 且 messageCount 不变
+
+### 预期（计划）
+- Working 卡片变为黄色 "Claude (waiting)"
+- 文本通知"⚠️ 响应超时，会话可能已卡住"
+- SWEAT reaction

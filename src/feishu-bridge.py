@@ -995,8 +995,8 @@ class FeishuBridge:
                     # Error → replace reaction with ❌
                     self._replace_reaction(session_id, "CrossMark")
                     self._pending_reactions.pop(session_id, None)
-            # Update or create working card — reuse only if done recently (within TTL)
-            if result.get("injected") or result.get("retained"):
+            # Working card — only when Claude is actively processing (not retained)
+            if result.get("injected") and not result.get("retained"):
                 existing_card = self._response_cards.get(session_id)
                 stale = existing_card and (
                     self._card_done_at.get(session_id, 0) < time.time() - _CARD_TTL_SECONDS
@@ -1011,6 +1011,11 @@ class FeishuBridge:
                     if card_id:
                         self._response_cards[session_id] = card_id
                         print(f"[FWD→Card] new working card for {session_id[:8]}", flush=True)
+            elif result.get("retained"):
+                # Message queued in pending file — terminal not actively processing
+                self._replace_reaction(session_id, "Hourglass")
+                self._send_text(chat_id, "⏳ 消息已排队，终端空闲后将自动处理")
+                print(f"[FWD→Retained] session={session_id[:8]} message queued", flush=True)
         except Exception as e:
             self._send_text(chat_id, f"⚠️ Forward failed: {e}")
 
