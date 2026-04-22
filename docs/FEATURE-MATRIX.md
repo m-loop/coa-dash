@@ -291,6 +291,32 @@
 
 ---
 
+## F14: Restart Management
+
+**Bridge/Server 重启后的自动恢复机制**
+
+| 项目 | 值 |
+|------|-----|
+| 设计决策 | — |
+| 测试用例 | FB-48 |
+| 状态 | active |
+
+**行为**：
+- Bridge 启动时调 `/api/claudecode/available` 预热 path cache
+- 校验所有已 link session，移除已删除的 stale mapping
+- Server `_resolve_project_cwd()` cache miss 自动重建（shared 函数）
+- `/new` 创建项目后自动刷新 cache
+- 重启检查单持久化在 `feishu-bridge-test` SKILL.md
+
+**保护场景**：
+- bridge 重启 → warmup 预热 cache → session 可用
+- coa-dash 重启 → cache 清空 → 下次请求自动重建 → session 可用
+- `/new` 新项目 → cache 刷新 → 新项目立即可发现
+
+**提交**：`129d884`（bridge warmup）+ `05abd25`（server auto-rebuild）
+
+---
+
 ## 测试用例 → 特性映射
 
 | Case | Feature | P |
@@ -337,3 +363,4 @@
 | FB-45 | F03 | P0 |
 | FB-46 | F12 | P0 |
 | FB-47 | F13 | P1 |
+| FB-48 | F14 | P0 |

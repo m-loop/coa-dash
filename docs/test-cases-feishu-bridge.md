@@ -768,3 +768,43 @@ journalctl --user -u feishu-bridge --since "30 sec ago" --no-pager | grep -E "FW
 - Working 卡片变为黄色 "Claude (waiting)"
 - 文本通知"⚠️ 响应超时，会话可能已卡住"
 - SWEAT reaction
+
+---
+
+## FB-48: Restart management — path cache warmup + session validation
+
+**Feature**: F14 (Restart Management)
+**Priority**: P0
+**Method**: Bridge log inspection
+
+### 前提
+- Bridge 和 coa-dash 均已运行
+- 至少 1 个 session 已 link
+
+### 操作
+1. `systemctl --user restart coa-dash && sleep 2 && systemctl --user restart feishu-bridge && sleep 5`
+2. 检查 bridge 启动日志
+
+### 预期
+- 日志包含 `[Bridge] Warmup: N sessions, path cache primed`（N > 0）
+- 日志包含 `connected to wss://msg-frontier.feishu.cn/ws/v2`
+- 日志**不包含** `[Bridge] Warmup failed` 或 `ERROR`
+- 已 link session 的 cwd 正确解析（无 "Session has no working directory"）
+- 飞书端发消息 → 正常收到回复卡片（非 CrossMark）
+
+### 验证
+```bash
+# Warmup 成功
+journalctl --user -u feishu-bridge --since "30 sec ago" --no-pager | grep "Warmup"
+# 已 link session cwd 正确
+curl -sf "localhost:8890/api/claudecode/available" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+no_cwd=[s for s in d.get('sessions',[]) if not s.get('cwd')]
+print(f'missing cwd: {len(no_cwd)}')
+"
+```
+
+### 额外场景：coa-dash 单独重启
+1. `systemctl --user restart coa-dash && sleep 2`
+2. 从飞书发消息 → 应正常工作（path cache auto-rebuild）
