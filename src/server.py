@@ -678,6 +678,64 @@ def get_claude_session(session_id):
     return None
 
 
+def _build_path_cache():
+    """Build reverse lookup: encoded dir name -> real path."""
+    cache = {}
+    scan_bases = [
+        os.path.expanduser("~/vault/projects"),
+        os.path.expanduser("~"),
+        "/tmp",
+    ]
+    for base in scan_bases:
+        if not os.path.isdir(base):
+            continue
+        if base.endswith("vault/projects"):
+            depth = 1
+        elif base == os.path.expanduser("~"):
+            depth = 2
+        else:
+            depth = 1
+        def walk(b, d):
+            try:
+                for entry in os.listdir(b):
+                    full = os.path.join(b, entry)
+                    if os.path.isdir(full):
+                        enc = full.replace("/", "-")
+                        cache[enc] = full
+                        if d > 1:
+                            walk(full, d - 1)
+            except PermissionError:
+                pass
+        walk(base, depth)
+    return cache
+
+
+def _resolve_project_cwd(project_dir_name):
+    """Resolve encoded project dir name to real cwd path.
+    Uses shared path cache with auto-rebuild on miss."""
+    if not project_dir_name.startswith("-"):
+        return None, project_dir_name.split("-")[-1] or project_dir_name
+
+    now = time.time()
+    if not hasattr(list_available_claude_sessions, '_path_cache') or \
+       now - getattr(list_available_claude_sessions, '_path_cache_time', 0) > 60:
+        list_available_claude_sessions._path_cache = _build_path_cache()
+        list_available_claude_sessions._path_cache_time = now
+
+    cached = list_available_claude_sessions._path_cache
+    if project_dir_name in cached:
+        return cached[project_dir_name], os.path.basename(cached[project_dir_name])
+
+    # Miss — rebuild and retry once
+    list_available_claude_sessions._path_cache = _build_path_cache()
+    list_available_claude_sessions._path_cache_time = time.time()
+    cached = list_available_claude_sessions._path_cache
+    if project_dir_name in cached:
+        return cached[project_dir_name], os.path.basename(cached[project_dir_name])
+
+    return None, project_dir_name.split("-")[-1] or project_dir_name
+
+
 def _get_session_from_disk(session_id):
     """Find a session on disk by scanning ~/.claude/projects/"""
     claude_projects_dir = os.path.expanduser("~/.claude/projects")
@@ -719,16 +777,7 @@ def _get_session_from_disk(session_id):
         except Exception:
             pass
         # Resolve project name
-        project_name = project_dir_name
-        cwd_path = None
-        if project_dir_name.startswith("-"):
-            if hasattr(list_available_claude_sessions, '_path_cache'):
-                cached = list_available_claude_sessions._path_cache
-                if project_dir_name in cached:
-                    cwd_path = cached[project_dir_name]
-                    project_name = os.path.basename(cwd_path)
-            if cwd_path is None:
-                project_name = project_dir_name.split("-")[-1] or project_dir_name
+        cwd_path, project_name = _resolve_project_cwd(project_dir_name)
         # Check if active in terminal
         is_active_in_terminal = _is_session_in_terminal(session_id, cwd_path or project_dir_name)
         return {
@@ -1232,50 +1281,7 @@ def list_available_claude_sessions(cwd=None):
             project_name = project_dir_name
             cwd_path = None
             if project_dir_name.startswith("-"):
-                # Claude Code encodes paths: / -> -, . -> --, joined with -
-                # e.g. /home/aegis/vault/projects/coa-dash -> -home-aegis-vault-projects-coa-dash
-                # e.g. /home/aegis/.openclaw/workspace -> -home-aegis--openclaw-workspace
-                # Can't naively decode because project names contain '-' (coa-dash, deep-reset-spa)
-                # Strategy: build reverse lookup from filesystem
-                if not hasattr(list_available_claude_sessions, '_path_cache') or \
-                   time.time() - getattr(list_available_claude_sessions, '_path_cache_time', 0) > 60:
-                    cache = {}
-                    scan_bases = [
-                        os.path.expanduser("~/vault/projects"),
-                        os.path.expanduser("~"),
-                        "/tmp",
-                    ]
-                    for base in scan_bases:
-                        if not os.path.isdir(base):
-                            continue
-                        if base.endswith("vault/projects"):
-                            depth = 1  # only direct children
-                        elif base == os.path.expanduser("~"):
-                            depth = 2  # ~/* and ~/*/*
-                        elif base == "/tmp":
-                            depth = 1  # /tmp/*
-                        else:
-                            depth = 1
-                        def walk(b, d):
-                            try:
-                                for entry in os.listdir(b):
-                                    full = os.path.join(b, entry)
-                                    if os.path.isdir(full):
-                                        enc = full.replace("/", "-")
-                                        cache[enc] = full
-                                        if d > 1:
-                                            walk(full, d - 1)
-                            except PermissionError:
-                                pass
-                        walk(base, depth)
-                    list_available_claude_sessions._path_cache = cache
-                    list_available_claude_sessions._path_cache_time = time.time()
-                cached = list_available_claude_sessions._path_cache
-                if project_dir_name in cached:
-                    cwd_path = cached[project_dir_name]
-                    project_name = os.path.basename(cwd_path)
-                else:
-                    project_name = project_dir_name.split("-")[-1] or project_dir_name
+                cwd_path, project_name = _resolve_project_cwd(project_dir_name)
 
             # Scan session files in this project
             for f in os.listdir(project_dir):
