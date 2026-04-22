@@ -808,3 +808,52 @@ print(f'missing cwd: {len(no_cwd)}')
 ### 额外场景：coa-dash 单独重启
 1. `systemctl --user restart coa-dash && sleep 2`
 2. 从飞书发消息 → 应正常工作（path cache auto-rebuild）
+
+---
+
+## FB-49: /model command — switch session model
+
+**Feature**: F15 (Model Switching)
+**Priority**: P0
+**Method**: Feishu text + log inspection
+
+### 前提
+- Session 已 link
+- Session status = idle
+
+### 操作
+1. 发 `/model`（无参数）
+2. 在弹出卡片中点击 [sonnet]
+3. 发 `/model opus`（直接切换）
+
+### 预期
+- 步骤 1：弹出卡片，header 显示当前 model，4 个按钮 [sonnet] [opus] [haiku] [default]
+- 步骤 2：收到文本 "✅ Model set to sonnet"
+- 步骤 3：收到文本 "✅ Model set to opus"
+- 控制面板 `/help` 显示更新后的 model
+
+### 验证
+```bash
+curl -sf "localhost:8890/api/claudecode/sessions/<SESSION_ID>" | python3 -c "
+import json,sys; d=json.load(sys.stdin); print(f'model={d.get(\"model\")}')"
+```
+
+---
+
+## FB-50: [Model] card button on control panel
+
+**Feature**: F15 (Model Switching)
+**Priority**: P1
+**Method**: Feishu card interaction
+
+### 前提
+- Session 已 link
+
+### 操作
+1. 发 `/help`（显示控制面板）
+2. 点击 [Model] 按钮
+
+### 预期
+- 控制面板卡片有 6 个按钮：[Stop] [History] [Compact] [Model] [Unlink] [Sessions]
+- 点击 [Model] 后弹出 model 选择卡片（同 FB-49）
+- 面板状态行包含 `model: <current_model>`

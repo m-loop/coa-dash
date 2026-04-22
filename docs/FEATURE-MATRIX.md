@@ -317,6 +317,29 @@
 
 ---
 
+## F15: Model Switching
+
+**切换 session 模型**
+
+| 项目 | 值 |
+|------|-----|
+| 设计决策 | — |
+| 测试用例 | FB-49, FB-50 |
+| 状态 | active |
+
+**行为**：
+- `/model` 无参数：弹出卡片选择 sonnet / opus / haiku / default
+- `/model <name>`：直接切换，如 `/model sonnet`
+- 控制面板 [Model] 按钮触发选择卡片
+- 切换后下次 Claude 调用生效（`--model` 参数）
+- 面板状态行显示当前 model
+
+**Server API**：`PUT /api/claudecode/sessions/:id/model` → 更新 `session.model`
+
+**提交**：`80971a6`
+
+---
+
 ## 测试用例 → 特性映射
 
 | Case | Feature | P |
@@ -364,3 +387,5 @@
 | FB-46 | F12 | P0 |
 | FB-47 | F13 | P1 |
 | FB-48 | F14 | P0 |
+| FB-49 | F15 | P0 |
+| FB-50 | F15 | P1 |
