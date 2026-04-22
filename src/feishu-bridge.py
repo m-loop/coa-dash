@@ -1580,12 +1580,14 @@ class FeishuBridge:
                         new_baseline = resp.json().get("messageCount", 0)
                         self._forward_baselines[session_id] = new_baseline
                         print(f"[POLL] {session_id[:8]} baseline synced to {new_baseline}", flush=True)
-                except Exception:
-                    pass
+                except Exception as sync_err:
+                    print(f"[WARN] Poll {session_id[:8]}: baseline sync failed: {sync_err}", flush=True)
                 time.sleep(6)
             except Exception as e:
-                print(f"[WARN] Poll {session_id[:8]}: {e}")
+                import traceback
+                print(f"[ERROR] Poll {session_id[:8]} died: {e}\n{traceback.format_exc()}", flush=True)
                 time.sleep(6)
+        print(f"[POLL] thread exiting for {session_id[:8]}", flush=True)
 
     def _is_claude_alive(self, session_id):
         """Check if a Claude process is still running for this session."""
