@@ -1092,20 +1092,11 @@ class FeishuBridge:
                     self._pending_reactions.pop(session_id, None)
             # Working card — only when Claude is actively processing (not retained)
             if result.get("injected") and not result.get("retained"):
-                existing_card = self._response_cards.get(session_id)
-                stale = existing_card and (
-                    self._card_done_at.get(session_id, 0) < time.time() - _CARD_TTL_SECONDS
-                )
-                if existing_card and not stale:
-                    self._update_card(existing_card, "Claude", "⏳ Thinking...", "working")
-                    print(f"[FWD→Card] reuse working card for {session_id[:8]}", flush=True)
-                else:
-                    if stale:
-                        print(f"[FWD→Card] stale card (TTL expired), new for {session_id[:8]}", flush=True)
-                    card_id = self._send_card(chat_id, "Claude", "⏳ Thinking...", "working")
-                    if card_id:
-                        self._response_cards[session_id] = card_id
-                        print(f"[FWD→Card] new working card for {session_id[:8]}", flush=True)
+                # Always create a new card — done cards are read-only history
+                card_id = self._send_card(chat_id, "Claude", "⏳ Thinking...", "working")
+                if card_id:
+                    self._response_cards[session_id] = card_id
+                    print(f"[FWD→Card] new working card for {session_id[:8]}", flush=True)
             elif result.get("retained"):
                 # Message queued in pending file — terminal not actively processing
                 self._replace_reaction(session_id, "Hourglass")
